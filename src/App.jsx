@@ -11515,58 +11515,13 @@ export default function App() {
   <div
     key={n.id}
     onClick={()=>{setPage(n.id);setSidebarOpen(false);}}
-    title={
-      n.id==="chat_docs" ? "Carica i tuoi PDF con normative SIA, SUVA o capitolati e fai domande specifiche: l'AI risponde basandosi sui documenti che hai caricato." :
-      n.id==="chat_ai" ? "Assistente generale per normative edilizie svizzere" :
-      n.id==="ranking" ? "Confronta offerte di più imprese automaticamente" :
-      n.id==="gantt" ? "Pianifica il programma lavori con Gantt interattivo" :
-      n.id==="reports" ? "Genera perizie, ispezioni e verbali di collaudo" :
-      ""
-    }
+    title={n.id==="chat_docs"?"Carica PDF con normative SIA, SUVA o capitolati e fai domande: l AI risponde dai tuoi documenti":n.id==="chat_ai"?"Assistente generale per normative edilizie svizzere":n.id==="ranking"?"Confronta offerte di piu imprese automaticamente":n.id==="gantt"?"Pianifica il programma lavori con Gantt interattivo":n.id==="reports"?"Genera perizie, ispezioni e verbali di collaudo":""}
     style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderRadius:9,cursor:"pointer",marginBottom:2,background:page===n.id?"rgba(59,130,246,0.15)":"transparent",color:page===n.id?"#60a5fa":"#64748b",fontSize:13,fontWeight:page===n.id?700:400}}
   >
     <Icon d={PATHS[n.icon]} size={16}/>{n.label}
     {n.id==="admin"&&pending.length>0&&<span style={{marginLeft:"auto",width:18,height:18,borderRadius:"50%",background:T.amber,color:"#fff",fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{pending.length}</span>}
   </div>
 ))}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '9px 12px',
-              borderRadius: 9,
-              cursor: 'pointer',
-              marginBottom: 2,
-              background:
-                page === n.id ? 'rgba(59,130,246,0.15)' : 'transparent',
-              color: page === n.id ? '#60a5fa' : '#64748b',
-              fontSize: 13,
-              fontWeight: page === n.id ? 700 : 400,
-            }}
-          >
-            <Icon d={PATHS[n.icon]} size={16} />
-            {n.label}
-            {n.id === 'admin' && pending.length > 0 && (
-              <span
-                style={{
-                  marginLeft: 'auto',
-                  width: 18,
-                  height: 18,
-                  borderRadius: '50%',
-                  background: T.amber,
-                  color: '#fff',
-                  fontSize: 10,
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {pending.length}
-              </span>
-            )}
-          </div>
-        ))}
         <div
           style={{
             fontSize: 10,
