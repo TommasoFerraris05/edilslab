@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 
-// ─── DATI BASE ────────────────────────────────────────────────────────────────
+// ─── DATI BASE ────────
 const INITIAL_USERS = [
   {
     email: 'admin@edilslab.ch',
