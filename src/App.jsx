@@ -11807,23 +11807,6 @@ export default function App() {
                 }}
               />
               Mock
-            </div>
-            {user.role === 'admin' && (
-              <span
-                style={{
-                  display: 'inline-block',
-                  padding: '4px 10px',
-                  borderRadius: 8,
-                  fontSize: 11,
-                  fontWeight: 700,
-                  background: '#eff6ff',
-                  color: T.blue,
-                }}
-              >
-                Admin
-              </span>
-            )}
-          </div>
         </div>
         <div style={{ flex: 1, padding: mob ? 14 : 26, overflow: 'auto' }}>
           {page === 'dashboard' && (
