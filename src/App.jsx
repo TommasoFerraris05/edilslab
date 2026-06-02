@@ -11783,31 +11783,6 @@ export default function App() {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                padding: '5px 11px',
-                background: '#fefce8',
-                border: '1px solid #fde68a',
-                borderRadius: 8,
-                fontSize: 11,
-                color: '#92400e',
-                fontWeight: 600,
-              }}
-            >
-              <span
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: T.amber,
-                  display: 'inline-block',
-                }}
-              />
-              Mock
-        </div>
         <div style={{ flex: 1, padding: mob ? 14 : 26, overflow: 'auto' }}>
           {page === 'dashboard' && (
             <DashHome user={user} setPage={setPage} users={users} />
