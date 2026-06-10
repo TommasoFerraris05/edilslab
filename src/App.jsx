@@ -40,6 +40,19 @@ const getEnti = (t) => {
   return [...new Set(m.length ? m : ["SIA", "SUVA"])];
 };
 
+const FONTI_DEFAULT = [
+  { id:1, nome:"LCPubb", desc:"Legge sulle commesse pubbliche", url:"https://m3.ti.ch/CAN/RLeggi/public/index.php/raccolta-leggi/legge/num/410", cat:"Canton TI", attiva:true },
+  { id:2, nome:"RLCPubb", desc:"Regolamento LCPubb", url:"https://m3.ti.ch/CAN/RLeggi/public/index.php/raccolta-leggi/legge/num/411", cat:"Canton TI", attiva:true },
+  { id:3, nome:"LE", desc:"Legge edilizia cantonale", url:"https://m3.ti.ch/CAN/RLeggi/public/raccolta-leggi/legge/num/406", cat:"Canton TI", attiva:true },
+  { id:4, nome:"RLE", desc:"Regolamento legge edilizia", url:"https://m3.ti.ch/CAN/RLeggi/public/index.php/raccolta-leggi/legge/num/407", cat:"Canton TI", attiva:true },
+  { id:5, nome:"SUVA Sicurezza", desc:"Direttive sicurezza cantieri SUVA", url:"https://www.suva.ch/it-ch/prevenzione/temi/edilizia-e-guaste", cat:"SUVA", attiva:true },
+  { id:6, nome:"SUVA Sostanze nocive", desc:"Sostanze nocive sul lavoro", url:"https://www.suva.ch/it-ch/prevenzione/temi/sostanze-nocive", cat:"SUVA", attiva:true },
+  { id:7, nome:"UPI Prevenzione", desc:"Prevenzione infortuni UPI", url:"https://www.upi.ch/it/", cat:"UPI", attiva:true },
+  { id:8, nome:"SIA Norme", desc:"Norme tecniche SIA", url:"https://www.sia.ch/it/norme/norme-sia/", cat:"SIA", attiva:true },
+  { id:9, nome:"admin.ch Leggi", desc:"Leggi federali svizzere", url:"https://www.admin.ch/gov/it/pagina-iniziale/diritto-federale/raccolta-sistematica.html", cat:"Confederazione", attiva:true },
+  { id:10, nome:"simap.ch", desc:"Appalti pubblici Svizzera", url:"https://www.simap.ch", cat:"Appalti", attiva:true },
+];
+
 const NOTE = " Le informazioni hanno carattere orientativo. Consultare sempre le norme ufficiali SIA su sia.ch e un professionista abilitato.";
 const RDOCS = [
   "Dai documenti caricati emerge che la responsabilita dell appaltatore e disciplinata dalla normativa applicabile. Per i dettagli consultare il testo integrale della norma ufficiale." + NOTE,
@@ -63,6 +76,17 @@ const REMAILS = [
   { ogg: "Convocazione riunione di cantiere", corpo: "Gentili colleghi,\n\nVi convoco alla riunione di cantiere del [DATA] alle [ORA] presso [LUOGO].\n\nOrdine del giorno:\n1. Avanzamento lavori\n2. Problematiche\n3. Prossime fasi\n\nConfermare partecipazione entro [DATA].\n\nCordiali saluti,\n[NOME]\nDirettore Lavori" },
   { ogg: "Segnalazione non conformita", corpo: "Gentile [DESTINATARIO],\n\nIn seguito all ispezione del [DATA] presso [LUOGO], si segnalano le seguenti non conformita:\n\n1. [NON CONFORMITA 1]\n2. [NON CONFORMITA 2]\n\nSi richiede di provvedere entro il [TERMINE].\n\nCordiali saluti,\n[NOME]" },
 ];
+function useFonti() {
+  const [fonti, setFonti] = useState(() => {
+    try { const s = localStorage.getItem("es_fonti"); return s ? JSON.parse(s) : FONTI_DEFAULT; } catch(e) { return FONTI_DEFAULT; }
+  });
+  const save = (list) => { setFonti(list); try { localStorage.setItem("es_fonti", JSON.stringify(list)); } catch(e) {} };
+  const add = (f) => save([...fonti, { ...f, id: Date.now(), attiva: true }]);
+  const toggle = (id) => save(fonti.map(f => f.id === id ? { ...f, attiva: !f.attiva } : f));
+  const remove = (id) => save(fonti.filter(f => f.id !== id));
+  return { fonti, add, toggle, remove };
+}
+
 const EXT_COLOR = { PDF:"#ef4444",DOCX:"#2563eb",DOC:"#2563eb",XLSX:"#059669",XLS:"#059669",PPTX:"#d97706",PPT:"#d97706",CSV:"#0891b2",TXT:"#64748b",JPG:"#7c3aed",JPEG:"#7c3aed",PNG:"#7c3aed",DWG:"#94a3b8",DXF:"#94a3b8" };
 const EXT_READ = { PDF:true,DOCX:true,DOC:true,XLSX:true,XLS:true,PPTX:true,PPT:true,CSV:true,TXT:true,JPG:true,JPEG:true,PNG:true,DWG:false,DXF:false };
 
@@ -525,10 +549,14 @@ function Chat({user,mode,onAddHistory}){
 
   const handlePhoto=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>setPhoto({url:ev.target.result,name:f.name});r.readAsDataURL(f);};
 
+  const {fonti} = useFonti();
+  const fontiAttive = fonti.filter(f=>f.attiva);
+  const fontiList = fontiAttive.map(f=>`- ${f.nome}: ${f.url}`).join("\n");
+
   const callAPI = async (question, imageUrl) => {
     const systemPrompt = isDoc
-      ? `Sei un assistente tecnico specializzato in edilizia svizzera. Hai accesso a documenti tecnici caricati dall'utente e puoi cercare sul web in tempo reale per trovare normative aggiornate su SUVA (suva.ch), SIA (sia.ch), admin.ch, ti.ch e altri enti ufficiali svizzeri. Quando cerchi sul web, specifica sempre la fonte. Rispondi sempre in italiano. Aggiungi questa nota alla fine: "Le informazioni hanno carattere orientativo. Consultare sempre le norme ufficiali e un professionista abilitato."`
-      : `Sei un assistente tecnico per l'edilizia svizzera. Rispondi in italiano su normative SIA, SUVA, sicurezza cantieri, tecniche costruttive. Puoi generare bozze di email professionali se richiesto.`;
+      ? `Sei un assistente tecnico specializzato in edilizia svizzera. Hai accesso a documenti tecnici caricati dall'utente e puoi cercare sul web in tempo reale.\n\nFONTI UFFICIALI DA CONSULTARE PRIORITARIAMENTE:\n${fontiList}\n\nCerca sempre su questi siti prima di rispondere. Cita sempre la fonte. Rispondi in italiano. Aggiungi alla fine: "Le informazioni hanno carattere orientativo. Consultare sempre le norme ufficiali e un professionista abilitato."`
+      : `Sei un assistente tecnico per l'edilizia svizzera. Rispondi in italiano su normative SIA, SUVA, sicurezza cantieri, tecniche costruttive. Fonti prioritarie:\n${fontiList}\nPuoi generare bozze di email professionali se richiesto.`;
 
     const tools = webSearch ? [{
       type: "web_search_20250305",
@@ -575,6 +603,33 @@ function Chat({user,mode,onAddHistory}){
   const send = async (txt) => {
     const q = txt || input.trim();
     if (!q && !photo) return;
+    // If user pasted a URL, fetch it and send as context
+    const urlMatch = q.match(/https?:\/\/[^\s]+/);
+    if (urlMatch && !photo) {
+      const url = urlMatch[0];
+      const umsg = { role:"user", text:q, enti:[], webResults:[] };
+      setInput(""); setMsgs(m=>[...m,umsg]); setTyping(true);
+      try {
+        const storedKey = (() => { try { return localStorage.getItem("es_anthropic_key")||""; } catch(e) { return ""; } })();
+        const resp = await fetch("https://api.anthropic.com/v1/messages", {
+          method:"POST",
+          headers:{"Content-Type":"application/json","x-api-key":storedKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+          body: JSON.stringify({
+            model:"claude-sonnet-4-20250514", max_tokens:1000,
+            tools:[{type:"web_search_20250305",name:"web_search"}],
+            system:"Sei un assistente tecnico edile svizzero. L utente ha incollato un URL. Accedi alla pagina, leggila e rispondi in italiano sul contenuto. Se e un documento normativo riassumi i punti chiave.",
+            messages:[{role:"user",content:"Leggi questa pagina e dimmi i punti principali: "+url+(q!==url?" Domanda: "+q.replace(url,"").trim():"")}]
+          })
+        });
+        const data = await resp.json();
+        const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("") || "Non riesco ad accedere alla pagina.";
+        setMsgs(m=>[...m,{role:"assistant",text,enti:getEnti(text),webResults:[]}]);
+      } catch(e) {
+        setMsgs(m=>[...m,{role:"assistant",text:"Errore: "+e.message,enti:[],webResults:[]}]);
+      }
+      setTyping(false);
+      return;
+    }
     const umsg = { role:"user", text: q || "Ho inviato una foto.", image: photo ? photo.url : null };
     setInput(""); setPhoto(null);
     setMsgs(m => [...m, umsg]);
@@ -2665,6 +2720,71 @@ function Progetti({user,users,gare,reports,tasks}){
 }
 
 
+function FontiPage({user}){
+  const {fonti,add,toggle,remove}=useFonti();
+  const [newNome,setNewNome]=useState("");
+  const [newUrl,setNewUrl]=useState("");
+  const [newDesc,setNewDesc]=useState("");
+  const [newCat,setNewCat]=useState("Altro");
+  const [err,setErr]=useState("");
+  const isAdmin=user.role==="admin";
+  const cats=[...new Set(fonti.map(f=>f.cat))];
+  const pc={background:"#dce1ea",border:"1px solid "+T.border,borderRadius:14,padding:20,marginBottom:16,boxShadow:T.shadow};
+  const catColors={"Canton TI":T.blue,"SUVA":T.red,"UPI":T.amber,"SIA":T.purple,"Confederazione":"#0891b2","Appalti":T.green,"Altro":T.textSub};
+  const handleAdd=()=>{
+    if(!newNome.trim()||!newUrl.trim()){setErr("Nome e URL obbligatori.");return;}
+    if(!newUrl.startsWith("http")){setErr("URL non valido.");return;}
+    add({nome:newNome.trim(),url:newUrl.trim(),desc:newDesc.trim(),cat:newCat});
+    setNewNome("");setNewUrl("");setNewDesc("");setErr("");
+  };
+  return(<div style={{maxWidth:800}}>
+    <div style={{marginBottom:20}}>
+      <div style={{fontSize:20,fontWeight:800,color:T.text}}>Fonti e Normative</div>
+      <div style={{fontSize:13,color:T.textSub,marginTop:3}}>Le fonti attive vengono consultate automaticamente dalla Chat</div>
+    </div>
+    {cats.map(cat=>(
+      <div key={cat} style={pc}>
+        <div style={{fontSize:13,fontWeight:800,color:catColors[cat]||T.textSub,marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
+          <div style={{width:8,height:8,borderRadius:"50%",background:catColors[cat]||T.textSub}}/>{cat}
+        </div>
+        {fonti.filter(f=>f.cat===cat).map(f=>(
+          <div key={f.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid #c4ccd820"}}>
+            <div onClick={()=>toggle(f.id)} style={{width:36,height:20,borderRadius:10,background:f.attiva?(catColors[f.cat]||T.blue):"#c4ccd8",cursor:"pointer",position:"relative",flexShrink:0,transition:"background 0.2s"}}>
+              <div style={{position:"absolute",top:2,left:f.attiva?18:2,width:16,height:16,borderRadius:"50%",background:"#fff",transition:"left 0.2s"}}/>
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:700,color:f.attiva?T.text:T.textMuted}}>{f.nome}</div>
+              {f.desc&&<div style={{fontSize:11,color:T.textMuted}}>{f.desc}</div>}
+              <a href={f.url} target="_blank" rel="noopener noreferrer" style={{fontSize:10,color:T.blue,wordBreak:"break-all"}}>{f.url.length>55?f.url.substring(0,55)+"...":f.url}</a>
+            </div>
+            {isAdmin&&<button onClick={()=>remove(f.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#b0b8c4",padding:4}}><Icon d={PATHS.trash} size={14}/></button>}
+          </div>
+        ))}
+      </div>
+    ))}
+    {isAdmin&&(<div style={{...pc,border:"1.5px solid "+T.blue+"40"}}>
+      <div style={{fontSize:14,fontWeight:800,color:T.text,marginBottom:14}}>+ Aggiungi nuova fonte</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+        <div><label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:4}}>Nome *</label>
+        <input style={inp} placeholder="es. RLCPubb" value={newNome} onChange={e=>{setNewNome(e.target.value);setErr("");}}/></div>
+        <div><label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:4}}>Categoria</label>
+        <select style={{...inp,cursor:"pointer"}} value={newCat} onChange={e=>setNewCat(e.target.value)}>
+          {["Canton TI","SUVA","UPI","SIA","Confederazione","Appalti","Altro"].map(c=><option key={c}>{c}</option>)}
+        </select></div>
+      </div>
+      <div style={{marginBottom:10}}><label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:4}}>URL *</label>
+      <input style={inp} placeholder="https://..." value={newUrl} onChange={e=>{setNewUrl(e.target.value);setErr("");}}/></div>
+      <div style={{marginBottom:12}}><label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:4}}>Descrizione</label>
+      <input style={inp} placeholder="opzionale" value={newDesc} onChange={e=>setNewDesc(e.target.value)}/></div>
+      {err&&<div style={{padding:"8px 12px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,fontSize:12,color:T.red,marginBottom:10}}>{err}</div>}
+      <button onClick={handleAdd} style={{...btnP,marginTop:0}}>Aggiungi fonte</button>
+    </div>)}
+    <div style={{padding:"12px 16px",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:10,fontSize:12,color:"#1e40af"}}>
+      💡 Fonti attive = risposte più precise sulle normative locali. Incolla un URL direttamente in chat per leggere una pagina specifica.
+    </div>
+  </div>);
+}
+
 export default function App(){
   // Inject global CSS animations once
   useEffect(()=>{
@@ -2732,10 +2852,11 @@ export default function App(){
     {id:"reports",label:"Rapporti Tecnici",icon:"file"},
     ...(user.role==="admin"?[{id:"docs",label:"Gestione Documenti",icon:"folder"}]:[]),
     {id:"progetti",label:"Cartelle Progetto",icon:"folder"},
+    {id:"fonti",label:"Fonti e Normative",icon:"link"},
     {id:"profile",label:"Profilo",icon:"user"},
     ...(user.role==="admin"?[{id:"admin",label:"Gestione utenti",icon:"users"}]:[]),
   ];
-  const titles={dashboard:"Dashboard",chat_docs:"Chat Documenti",chat_ai:"Chat Edilizia",ranking:"Graduatorie",gantt:"Programma Lavori",reports:"Rapporti Tecnici",docs:"Documenti",profile:"Profilo",admin:"Gestione utenti",progetti:"Cartelle Progetto"};
+  const titles={dashboard:"Dashboard",chat_docs:"Chat Documenti",chat_ai:"Chat Edilizia",ranking:"Graduatorie",gantt:"Programma Lavori",reports:"Rapporti Tecnici",docs:"Documenti",profile:"Profilo",admin:"Gestione utenti",progetti:"Cartelle Progetto",fonti:"Fonti e Normative"};
 
   const SidebarContent=()=>(
     <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
@@ -2799,6 +2920,7 @@ export default function App(){
           {page==="docs"&&(user.role==="admin"?<Documents/>:<AccessDenied/>)}
           {page==="profile"&&<Profile user={user} onDeleteAccount={handleDeleteAccount}/>}
           {page==="progetti"&&<Progetti user={user} users={users}/>}
+            {page==="fonti"&&<FontiPage user={user}/>}
           {page==="admin"&&(user.role==="admin"?<AdminUsers users={users} pending={pending} onApprove={approve} onReject={reject}/>:<AccessDenied/>)}
           </div>
         </div>
