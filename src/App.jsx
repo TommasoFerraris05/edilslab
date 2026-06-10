@@ -332,64 +332,153 @@ function ColorPicker({ value, onChange, size = "md" }) {
 // ─── HOMEPAGE ─────────────────────────────────────────────────────────────────
 function Homepage({onLogin,onRegister}){
   const mob=useIsMobile();
+  const [scrolled,setScrolled]=useState(false);
+  useEffect(()=>{
+    const fn=()=>setScrolled(window.scrollY>40);
+    window.addEventListener('scroll',fn);
+    return()=>window.removeEventListener('scroll',fn);
+  },[]);
+
+  const features=[
+    {icon:PATHS.docs,title:'Chat Documenti',desc:'Carica PDF tecnici — SIA, SUVA, capitolati — e interrogali con linguaggio naturale. Risposte precise con riferimento alla fonte.',color:'#2563eb',num:'01'},
+    {icon:PATHS.chat,title:'Chat Edilizia',desc:'Assistente specializzato in normative svizzere, tecniche costruttive e sicurezza cantieri. Genera anche bozze di email professionali.',color:'#7c3aed',num:'02'},
+    {icon:PATHS.camera,title:'Analisi Foto',desc:'Fotografa dal cantiere e ricevi un\'analisi tecnica immediata: fessurazioni, umidità, anomalie strutturali.',color:'#0891b2',num:'03'},
+    {icon:PATHS.podio,title:'Graduatorie Offerte',desc:'Confronto automatico tra offerte con IVA, sconti e ribassi. Analisi AI per identificare costi nascosti e varianti.',color:'#059669',num:'04'},
+    {icon:PATHS.gantt,title:'Programma Lavori',desc:'Gantt interattivo con giorni lavorativi, festivi ticinesi, dipendenze tra fasi e export PDF/Excel.',color:'#d97706',num:'05'},
+    {icon:PATHS.file,title:'Rapporti Tecnici',desc:'Genera perizie strutturali, verbali di ispezione e rapporti di collaudo in formato professionale pronto alla firma.',color:'#dc2626',num:'06'},
+  ];
+
+  const stats=[
+    {val:'6',label:'Strumenti integrati'},
+    {val:'100%',label:'Normative svizzere'},
+    {val:'AI',label:'Motore Claude'},
+    {val:'TI',label:'Focalizzato sul Ticino'},
+  ];
+
   return(
-    <div style={{fontFamily:"'Inter',-apple-system,sans-serif",background:"#c8d0dc",minHeight:"100vh"}}>
-      <nav style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 24px",height:62,borderBottom:"1px solid #b8c2d0",position:"sticky",top:0,background:"rgba(200,208,220,0.95)",backdropFilter:"blur(10px)",zIndex:10}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:34,height:34,background:T.gradBlue,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={PATHS.building} size={17} stroke="#fff"/></div>
-          <span style={{fontWeight:800,fontSize:18,color:T.text}}>Edilslab</span>
+    <div style={{fontFamily:"'Inter',-apple-system,sans-serif",background:'#f0f4f8',minHeight:'100vh',color:'#0f172a'}}>
+
+      {/* ── NAVBAR ── */}
+      <nav style={{position:'sticky',top:0,zIndex:100,height:64,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 clamp(20px,5vw,60px)',background:scrolled?'rgba(255,255,255,0.95)':'transparent',backdropFilter:scrolled?'blur(12px)':'none',borderBottom:scrolled?'1px solid #e2e8f0':'none',transition:'all 0.3s'}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{width:36,height:36,background:'linear-gradient(135deg,#1e40af,#3b82f6)',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 12px rgba(59,130,246,0.35)'}}>
+            <Icon d={PATHS.building} size={18} stroke="#fff"/>
+          </div>
+          <span style={{fontWeight:800,fontSize:20,color:'#0f172a',letterSpacing:'-0.5px'}}>Edilslab</span>
         </div>
-        <button onClick={onLogin} style={{padding:"9px 22px",background:T.gradBlue,color:"#fff",border:"none",borderRadius:9,fontWeight:600,fontSize:13,cursor:"pointer"}}>Accedi</button>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          {!mob&&<button onClick={onRegister} style={{padding:'8px 18px',background:'transparent',border:'1.5px solid #cbd5e1',borderRadius:8,fontWeight:600,fontSize:13,color:'#475569',cursor:'pointer'}}>Richiedi accesso</button>}
+          <button onClick={onLogin} style={{padding:'9px 22px',background:'linear-gradient(135deg,#1e40af,#3b82f6)',border:'none',borderRadius:9,fontWeight:700,fontSize:13,color:'#fff',cursor:'pointer',boxShadow:'0 4px 12px rgba(59,130,246,0.3)'}}>Accedi</button>
+        </div>
       </nav>
-      <div style={{background:T.gradDark,padding:mob?"56px 20px 64px":"80px 40px 96px",textAlign:"center",position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",top:-100,left:"50%",transform:"translateX(-50%)",width:600,height:600,borderRadius:"50%",background:"radial-gradient(circle,rgba(37,99,235,0.15),transparent 70%)",pointerEvents:"none"}}/>
-        <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 14px",background:"rgba(37,99,235,0.15)",borderRadius:20,fontSize:12,fontWeight:600,marginBottom:20,border:"1px solid rgba(37,99,235,0.3)",color:"#93c5fd"}}>
-          <Icon d={PATHS.spark} size={13} stroke="#93c5fd"/> Piattaforma AI per l edilizia svizzera
-        </div>
-        <h1 style={{fontSize:mob?32:52,fontWeight:800,margin:"0 0 18px",lineHeight:1.15,color:"#fff",letterSpacing:"-1px"}}>Lavora meglio.<br/><span style={{background:"linear-gradient(135deg,#60a5fa,#a78bfa)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Edilslab ti affianca.</span></h1>
-        <p style={{fontSize:mob?16:18,color:"#94a3b8",maxWidth:540,margin:"0 auto 36px",lineHeight:1.7}}>Consulta normative, analizza documenti e foto di cantiere, genera report, confronta offerte e pianifica i lavori.</p>
-        <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap"}}>
-          <button onClick={onLogin} style={{padding:"13px 30px",background:T.gradBlue,color:"#fff",border:"none",borderRadius:10,fontWeight:700,fontSize:15,cursor:"pointer"}}>Accedi alla piattaforma</button>
-          <button onClick={onRegister} style={{padding:"13px 24px",background:"rgba(255,255,255,0.08)",color:"#e2e8f0",border:"1px solid rgba(255,255,255,0.15)",borderRadius:10,fontWeight:600,fontSize:15,cursor:"pointer"}}>Richiedi accesso</button>
-        </div>
-        <div style={{display:"flex",justifyContent:"center",gap:28,marginTop:48,flexWrap:"wrap"}}>
-          {["Architetti","Ingegneri","Direttori Lavori","Impresari","Tecnici"].map(p=>(
-            <div key={p} style={{fontSize:13,color:"#64748b",display:"flex",alignItems:"center",gap:5}}><span style={{color:"#22c55e",fontSize:10}}>&#9679;</span>{p}</div>
-          ))}
+
+      {/* ── HERO ── */}
+      <div style={{background:'linear-gradient(160deg,#0f172a 0%,#1e293b 50%,#1e3a5f 100%)',padding:mob?'72px 24px 80px':'100px clamp(40px,8vw,120px) 110px',position:'relative',overflow:'hidden'}}>
+        {/* decorative circles */}
+        <div style={{position:'absolute',top:-120,right:-80,width:500,height:500,borderRadius:'50%',background:'radial-gradient(circle,rgba(59,130,246,0.12),transparent 65%)',pointerEvents:'none'}}/>
+        <div style={{position:'absolute',bottom:-100,left:-60,width:400,height:400,borderRadius:'50%',background:'radial-gradient(circle,rgba(124,58,237,0.08),transparent 65%)',pointerEvents:'none'}}/>
+
+        <div style={{maxWidth:900,margin:'0 auto',position:'relative'}}>
+          {/* badge */}
+          <div style={{display:'inline-flex',alignItems:'center',gap:7,padding:'6px 16px',background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:24,fontSize:12,fontWeight:600,color:'#93c5fd',marginBottom:28,letterSpacing:'0.3px'}}>
+            <div style={{width:6,height:6,borderRadius:'50%',background:'#3b82f6',boxShadow:'0 0 6px #3b82f6'}}/>
+            Piattaforma AI per l'edilizia svizzera · Canton Ticino
+          </div>
+
+          <h1 style={{fontSize:mob?'clamp(36px,9vw,48px)':'clamp(48px,5vw,72px)',fontWeight:800,color:'#fff',margin:'0 0 20px',lineHeight:1.1,letterSpacing:'-2px'}}>
+            Lo strumento AI<br/>
+            <span style={{background:'linear-gradient(135deg,#60a5fa,#a78bfa)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>per i professionisti</span><br/>
+            dell'edilizia
+          </h1>
+
+          <p style={{fontSize:mob?16:19,color:'#94a3b8',maxWidth:580,lineHeight:1.75,margin:'0 0 40px',fontWeight:400}}>
+            Consulta normative, analizza documenti e cantieri, genera report tecnici, confronta offerte e pianifica i lavori. Tutto in un'unica piattaforma.
+          </p>
+
+          <div style={{display:'flex',gap:14,flexWrap:'wrap',marginBottom:mob?48:56}}>
+            <button onClick={onLogin} style={{padding:'14px 32px',background:'linear-gradient(135deg,#1e40af,#3b82f6)',border:'none',borderRadius:11,fontWeight:700,fontSize:15,color:'#fff',cursor:'pointer',boxShadow:'0 8px 24px rgba(59,130,246,0.35)',letterSpacing:'-0.2px'}}>
+              Accedi alla piattaforma
+            </button>
+            <button onClick={onRegister} style={{padding:'14px 26px',background:'rgba(255,255,255,0.06)',border:'1.5px solid rgba(255,255,255,0.15)',borderRadius:11,fontWeight:600,fontSize:15,color:'#e2e8f0',cursor:'pointer',backdropFilter:'blur(4px)'}}>
+              Richiedi accesso →
+            </button>
+          </div>
+
+          {/* stats */}
+          <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(4,1fr)',gap:mob?12:20}}>
+            {stats.map((s,i)=>(
+              <div key={i} style={{padding:'16px 20px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,backdropFilter:'blur(8px)'}}>
+                <div style={{fontSize:mob?22:28,fontWeight:800,color:'#fff',letterSpacing:'-1px'}}>{s.val}</div>
+                <div style={{fontSize:12,color:'#64748b',marginTop:3,fontWeight:500}}>{s.label}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-      <div style={{padding:mob?"48px 20px":"72px 40px",maxWidth:1000,margin:"0 auto"}}>
-        <div style={{textAlign:"center",marginBottom:48}}>
-          <div style={{fontSize:11,fontWeight:700,color:T.blue,textTransform:"uppercase",letterSpacing:"1.5px",marginBottom:10}}>Funzionalita</div>
-          <h2 style={{fontSize:mob?24:34,fontWeight:800,color:T.text,margin:0}}>Tutto quello che serve, in un posto</h2>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"repeat(3,1fr)",gap:20}}>
-          {[
-            {icon:PATHS.docs,title:"Chat Documenti",desc:"L AI risponde dai tuoi PDF tecnici: SIA, SUVA, capitolati.",color:T.purple,bg:"#ccd3dd"},
-            {icon:PATHS.chat,title:"Chat Edilizia",desc:"Assistente per normative, tecniche costruttive e sicurezza.",color:T.blue,bg:"#c8d0dc"},
-            {icon:PATHS.camera,title:"Analisi Foto",desc:"Fotografa dal cantiere e ricevi analisi tecnica.",color:T.amber,bg:"#ccd3dd"},
-            {icon:PATHS.podio,title:"Graduatorie Offerte",desc:"Confronto automatico offerte per prezzo.",color:T.green,bg:"#c8d0dc"},
-            {icon:PATHS.gantt,title:"Programma Lavori",desc:"Gantt con giorni lavorativi, festivi e dipendenze.",color:"#0891b2",bg:"#ccd3dd"},
-            {icon:PATHS.file,title:"Rapporti Tecnici",desc:"Genera perizie, ispezioni e verbali di collaudo.",color:"#475569",bg:"#c8d0dc"},
-          ].map((f,i)=>(
-            <div key={i} style={{background:f.bg,border:"1px solid "+f.color+"20",borderRadius:16,padding:24}}>
-              <div style={{width:44,height:44,background:f.color+"18",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",color:f.color,marginBottom:14}}><Icon d={f.icon} size={20}/></div>
-              <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:8}}>{f.title}</div>
-              <div style={{fontSize:13,color:T.textSub,lineHeight:1.6}}>{f.desc}</div>
+
+      {/* ── PROFESSIONISTI ── */}
+      <div style={{background:'#fff',borderBottom:'1px solid #e2e8f0',padding:'0 clamp(20px,5vw,60px)'}}>
+        <div style={{maxWidth:1100,margin:'0 auto',padding:'20px 0',display:'flex',alignItems:'center',gap:mob?16:32,flexWrap:'wrap',justifyContent:mob?'center':'flex-start'}}>
+          <span style={{fontSize:12,fontWeight:600,color:'#94a3b8',letterSpacing:'0.5px',textTransform:'uppercase'}}>Per</span>
+          {['Architetti','Ingegneri','Geometri','Direttori Lavori','Impresari','Tecnici'].map(p=>(
+            <div key={p} style={{display:'flex',alignItems:'center',gap:6,fontSize:13,color:'#475569',fontWeight:500}}>
+              <div style={{width:5,height:5,borderRadius:'50%',background:'#3b82f6'}}/>
+              {p}
             </div>
           ))}
         </div>
       </div>
-      <div style={{background:"#c8d0dc",borderTop:"1px solid #b8c2d0",padding:"20px 40px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <div style={{width:26,height:26,background:T.gradBlue,borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={PATHS.building} size={13} stroke="#fff"/></div>
-          <span style={{fontWeight:700,fontSize:14,color:T.text}}>Edilslab</span>
+
+      {/* ── FEATURES ── */}
+      <div style={{padding:mob?'56px 24px':'80px clamp(40px,6vw,80px)',maxWidth:1200,margin:'0 auto'}}>
+        <div style={{textAlign:'center',marginBottom:mob?40:56}}>
+          <div style={{fontSize:11,fontWeight:700,color:'#3b82f6',textTransform:'uppercase',letterSpacing:'2px',marginBottom:12}}>Funzionalità</div>
+          <h2 style={{fontSize:mob?28:40,fontWeight:800,color:'#0f172a',margin:0,letterSpacing:'-1px',lineHeight:1.2}}>Tutto quello che serve,<br/>in un posto solo</h2>
+          <p style={{fontSize:15,color:'#64748b',marginTop:14,maxWidth:500,margin:'14px auto 0',lineHeight:1.7}}>Strumenti professionali costruiti per il settore edile svizzero, con focus sul Canton Ticino.</p>
         </div>
-        <div style={{fontSize:12,color:T.textMuted}}>Piattaforma privata · Svizzera Italiana</div>
+
+        <div style={{display:'grid',gridTemplateColumns:mob?'1fr':window.innerWidth<900?'1fr 1fr':'repeat(3,1fr)',gap:mob?16:24}}>
+          {features.map((f,i)=>(
+            <div key={i} style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:20,padding:mob?24:32,boxShadow:'0 2px 8px rgba(0,0,0,0.04)',transition:'transform 0.2s,box-shadow 0.2s',cursor:'default',position:'relative',overflow:'hidden'}}>
+              <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${f.color},${f.color}88)`}}/>
+              <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:16}}>
+                <div style={{width:48,height:48,borderRadius:14,background:f.color+'12',display:'flex',alignItems:'center',justifyContent:'center',color:f.color}}>
+                  <Icon d={f.icon} size={22}/>
+                </div>
+                <span style={{fontSize:11,fontWeight:700,color:'#cbd5e1',letterSpacing:'1px'}}>{f.num}</span>
+              </div>
+              <div style={{fontSize:16,fontWeight:700,color:'#0f172a',marginBottom:10,letterSpacing:'-0.3px'}}>{f.title}</div>
+              <div style={{fontSize:13,color:'#64748b',lineHeight:1.7}}>{f.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── CTA ── */}
+      <div style={{background:'linear-gradient(135deg,#1e293b,#1e3a5f)',margin:mob?'0 16px 48px':'0 clamp(40px,6vw,80px) 64px',borderRadius:24,padding:mob?'48px 28px':'64px clamp(40px,6vw,80px)',textAlign:'center',position:'relative',overflow:'hidden'}}>
+        <div style={{position:'absolute',top:-60,right:-60,width:300,height:300,borderRadius:'50%',background:'radial-gradient(circle,rgba(59,130,246,0.15),transparent 70%)',pointerEvents:'none'}}/>
+        <h2 style={{fontSize:mob?26:38,fontWeight:800,color:'#fff',margin:'0 0 14px',letterSpacing:'-1px'}}>Pronto a lavorare meglio?</h2>
+        <p style={{fontSize:15,color:'#94a3b8',margin:'0 0 32px',lineHeight:1.7}}>Piattaforma ad accesso controllato — richiedi l'accesso o accedi con le tue credenziali.</p>
+        <div style={{display:'flex',gap:14,justifyContent:'center',flexWrap:'wrap'}}>
+          <button onClick={onLogin} style={{padding:'13px 32px',background:'linear-gradient(135deg,#1e40af,#3b82f6)',border:'none',borderRadius:10,fontWeight:700,fontSize:14,color:'#fff',cursor:'pointer',boxShadow:'0 6px 20px rgba(59,130,246,0.35)'}}>Accedi</button>
+          <button onClick={onRegister} style={{padding:'13px 26px',background:'rgba(255,255,255,0.08)',border:'1.5px solid rgba(255,255,255,0.15)',borderRadius:10,fontWeight:600,fontSize:14,color:'#e2e8f0',cursor:'pointer'}}>Richiedi accesso</button>
+        </div>
+      </div>
+
+      {/* ── FOOTER ── */}
+      <div style={{borderTop:'1px solid #e2e8f0',padding:'20px clamp(20px,5vw,60px)',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12,background:'#fff'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <div style={{width:28,height:28,background:'linear-gradient(135deg,#1e40af,#3b82f6)',borderRadius:7,display:'flex',alignItems:'center',justifyContent:'center'}}>
+            <Icon d={PATHS.building} size={14} stroke="#fff"/>
+          </div>
+          <span style={{fontWeight:700,fontSize:14,color:'#0f172a'}}>Edilslab</span>
+        </div>
+        <div style={{fontSize:12,color:'#94a3b8'}}>Piattaforma privata · Svizzera Italiana · Canton Ticino</div>
       </div>
     </div>
   );
 }
+
 
 // ─── LOGIN / REGISTER ─────────────────────────────────────────────────────────
 function Login({users,onLogin,onRegister}){
