@@ -877,8 +877,9 @@ function Documents(){
   const openDrive = async () => {
     setDriveOpen(true); setDriveLoading(true); setDriveError(""); setDriveFiles([]);
     try {
+      const dKey=(()=>{try{return localStorage.getItem("es_anthropic_key")||"";}catch(e){return "";}})();
       const resp = await fetch("https://api.anthropic.com/v1/messages",{
-        method:"POST", headers:{"Content-Type":"application/json"},
+        method:"POST", headers:{"Content-Type":"application/json","x-api-key":dKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
         body: JSON.stringify({
           model:"claude-sonnet-4-20250514", max_tokens:1000,
           system:"Elenca i file dell utente da Google Drive. Rispondi SOLO con un array JSON: [{id, name, mimeType, modifiedTime, size}]. Nessun testo aggiuntivo.",
@@ -1251,8 +1252,9 @@ function Ranking(){
     setPdfLoading(true);setPdfError("");
     try{
       const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=()=>rej(new Error("Errore lettura"));r.readAsDataURL(file);});
+      const pKey=(()=>{try{return localStorage.getItem("es_anthropic_key")||"";}catch(e){return "";}})();
       const resp=await fetch("https://api.anthropic.com/v1/messages",{
-        method:"POST",headers:{"Content-Type":"application/json"},
+        method:"POST",headers:{"Content-Type":"application/json","x-api-key":pKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
         body:JSON.stringify({
           model:"claude-sonnet-4-20250514",max_tokens:1500,
           system:'Estrai TUTTE le offerte da questo PDF di offerta edile svizzera. Per ogni offerta restituisci: ditta (nome impresa), importoNetto (CHF numerico senza simboli), iva (aliquota %, default 8.1), sconto (% sconto commerciale, default 0), ribasso (% ribasso asta, default 0), importoLordo (CHF finale numerico), note (max 80 caratteri). Rispondi SOLO con array JSON valido senza testo e senza backtick. Se non trovi offerte: []',
@@ -3683,7 +3685,7 @@ export default function App(){
       return updated;
     });
   };
-  const login=u=>{setUser(u);setScreen("dashboard");};
+  const login=u=>{setUser(u);setScreen("dashboard");try{sessionStorage.setItem("es_u",JSON.stringify(u));}catch(e){}};
   const logout=()=>{setUser(null);setScreen("home");setPage("dashboard");try{sessionStorage.removeItem("es_u");}catch(e){}};
   const addPending=u=>setPending(p=>[...p,u]);
   const approve=email=>{const u=pending.find(p=>p.email===email);if(u){setUsers(us=>[...us,{...u,role:"user",status:"approved"}]);setPending(p=>p.filter(p=>p.email!==email));}};
