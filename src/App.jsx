@@ -92,6 +92,7 @@ const EXT_READ = { PDF:true,DOCX:true,DOC:true,XLSX:true,XLS:true,PPTX:true,PPT:
 
 // ─── REPORT TEMPLATES ────────────────────────────────────────────────────────
 const TMPLS = [
+  { id:"amianto", label:"Perizia Amianto", icon:"shield", color:"#dc2626", desc:"Rapporto ispezione sostanze nocive – ASCA v1.5" },
   { id:"perizia", label:"Perizia Strutturale", icon:"building", color:"#2563eb", desc:"Valutazione stato di conservazione strutturale",
     fields:[{k:"oggetto",l:"Oggetto",ph:"es. Edificio via Lugano 12"},{k:"committente",l:"Committente",ph:"Nome"},{k:"data",l:"Data sopralluogo",ph:"gg.mm.aaaa"},{k:"elementi",l:"Elementi esaminati",ph:"Pilastri, soletta...",ta:true},{k:"anomalie",l:"Anomalie riscontrate",ph:"Fessurazioni...",ta:true},{k:"causa",l:"Causa presunta",ph:"Ritiro plastico...",ta:true},{k:"interventi",l:"Interventi consigliati",ph:"Risanamento copriferro...",ta:true},{k:"urgenza",l:"Urgenza",ph:"Immediata / 3 mesi / Monitoraggio"},{k:"perito",l:"Perito",ph:"Nome e qualifica"}]
   },
@@ -1739,16 +1740,275 @@ function Ranking(){
   return null;
 }
 
+// ─── PERIZIA AMIANTO ─────────────────────────────────────────────────────────
+const TIPO_ISPEZIONE_OPTIONS = [
+  { val:"prima_lavori_demolizione", label:"Prima dei lavori di demolizione" },
+  { val:"prima_lavori_ristrutturazione", label:"Prima dei lavori di ristrutturazione" },
+  { val:"normale", label:"Utilizzazione normale dello stabile" },
+  { val:"altro", label:"Altro" },
+];
+const TIPO_ISPEZIONE_LABEL = {
+  prima_lavori_demolizione:"Prima dei lavori di demolizione",
+  prima_lavori_ristrutturazione:"Prima dei lavori di ristrutturazione",
+  normale:"Utilizzazione normale dello stabile",
+  altro:"Altro",
+};
+const EMPTY_ROW_AM = { id:0,piano:"",locale:"",nElem:"",descrizione:"",quantita:"",tipo:"FA",prelievo:"SI",nAnalogia:"",presenza:"NO",valutazione:"L",schedaId:"",urgenza:"",note:"" };
+const EMPTY_ROW_NOC = { id:0,piano:"",locale:"",nElem:"",descrizione:"",quantita:"",prelievo:"SI",nAnalogia:"",sostanza:"",concentrazione:"",valutazione:"L",schedaId:"",urgenza:"",note:"" };
+let _amRid=1; const amNewId=()=>++_amRid;
+
+function buildAmiantoReport(f,rowsAm,rowsNoc){
+  const today=new Date().toLocaleDateString("it-CH");
+  const sep="\n"+"─".repeat(72)+"\n";
+  const fmtAm=rows=>{
+    if(!rows.length)return"  Nessun materiale inserito.";
+    return rows.map((r,i)=>`  [${i+1}] Piano: ${r.piano||"-"} | Locale: ${r.locale||"-"} | N°: ${r.nElem||"-"}\n       Materiale: ${r.descrizione||"-"} | Quantità: ${r.quantita||"-"} | Tipo: ${r.tipo}\n       Prelievo: ${r.prelievo} | Amianto: ${r.presenza} | Valut.: ${r.valutazione}${r.schedaId?" | Scheda: "+r.schedaId:""}${r.urgenza?" | Urgenza: "+r.urgenza:""}${r.note?"\n       Note: "+r.note:""}`).join("\n\n");
+  };
+  const fmtNoc=rows=>{
+    if(!rows.length)return"  Nessun materiale inserito.";
+    return rows.map((r,i)=>`  [${i+1}] Piano: ${r.piano||"-"} | Locale: ${r.locale||"-"} | N°: ${r.nElem||"-"}\n       Materiale: ${r.descrizione||"-"} | Quantità: ${r.quantita||"-"}\n       Prelievo: ${r.prelievo} | Sostanza: ${r.sostanza||"-"} | Conc.: ${r.concentrazione||"-"} mg/kg | Valut.: ${r.valutazione}${r.schedaId?" | Scheda: "+r.schedaId:""}${r.urgenza?" | Urgenza: "+r.urgenza:""}${r.note?"\n       Note: "+r.note:""}`).join("\n\n");
+  };
+  const mca=rowsAm.filter(r=>r.presenza==="SI"||r.presenza==="SI*");
+  const mn=rowsNoc.filter(r=>r.sostanza&&r.sostanza!=="NO"&&r.sostanza!=="");
+  const tipoLabel=TIPO_ISPEZIONE_LABEL[f.tipoIspezione]||f.tipoIspezione||"Prima dei lavori di ristrutturazione";
+  return `RAPPORTO DI ISPEZIONE SOSTANZE NOCIVE\n${"═".repeat(72)}\n\n${f.indirizzo||"[Indirizzo da completare]"} | Mappale ${f.mappale||"XXX"} RFD\n\nOGGETTO         ${f.oggetto||"Casa d'abitazione"} – Edificato ${f.annoCost&&parseInt(f.annoCost)<1991?"prima del 1991":"anno "+f.annoCost}\nCOMMITTENTE     ${f.committente||"---"} | ${f.indirizzoCommittente||"---"}\nRAPPORTO        ${f.nRapporto||"XXX-XXX-XX"} | ${tipoLabel}${f.ispezioneP?" | Ispezione parziale":""}\nESPERTO         ${f.esperto||"---"} | IPRAC Consulenze | Via Muraccio 6, CH-6612 Ascona | info@iprac.ch | +41 91 780 5152\nDATA E VERSIONE ${f.dataRapporto||today}, versione ${f.versione||"1.0"}${sep}02. MANDATO\n\nIl committente ha incaricato lo studio IPRAC Consulenze di effettuare un ispezione per verificare la possibilita di trovare materiali contenenti amianto ed altre sostanze nocive ${tipoLabel.toLowerCase()} sul mappale ${f.mappale||"XXX"} RFD situato nel comune di ${f.comune||"XXX"} in ${f.indirizzo||"via XXX"}.\n\nTipo di ispezione: ${tipoLabel}\n\nElenco dei lavori previsti:\n${f.lavori?f.lavori.split("\n").map(l=>"- "+l).join("\n"):"- [Da completare]"}${sep}07. RAPPORTO D'ISPEZIONE\n\nTipo d ispezione         : ${tipoLabel}\nDocumentazione           : ${f.documentazione||"Sono stati forniti i piani dell immobile."}\nVisita preliminare       : ${f.visitaP||"Nessuna."}\nIspezione sostanze nocive: L ispezione e stata eseguita in data ${f.dataIspezione||"XXX"}\nLimiti dell ispezione    : ${f.limiti||"L ispezione ha interessato tutti i locali dell immobile."}\nRiserve                  : ${f.riserve||"Nessuna."}\n\nAnalisi di laboratorio   : Le analisi di laboratorio sui campioni prelevati sono state eseguite dal laboratorio ${f.laboratorio||"ANALYSIS Lab SA/AG"}, classificato dal FACH come laboratorio di classe 1.\n\nPrelievo/analisi MSCA    : ${mca.length>0?`Le analisi di laboratorio hanno riscontrato la presenza di ${mca.length} materiale/i contenente/i amianto (MCA).`:"Le analisi di laboratorio NON hanno riscontrato la presenza di materiali contenenti amianto."}\n\n${mn.length>0?"Prelievo/analisi MSCSN   : Le analisi di laboratorio hanno riscontrato la presenza di materiali contenenti sostanze nocive.":"Prelievo/analisi MSCSN   : Nessun materiale contenente sostanze nocive rilevato."}${sep}08. TABELLA MATERIALI SUSCETTIBILI DI CONTENERE AMIANTO\n\n${fmtAm(rowsAm)}\n\nLegenda: FA=Fortemente agglomerato | DA=Debolmente agglomerato | F=Floccato\n         L=Laboratorio | E=Esperto | D=Per difetto | SI*=Suscettibile per difetto${sep}08b. TABELLA MATERIALI SUSCETTIBILI DI CONTENERE ALTRE SOSTANZE NOCIVE\n\n${fmtNoc(rowsNoc)}\n\nLQ = Limite di quantificazione. LQ PCB: 1.3 ppm – LQ CP: 1%${sep}10. CONCLUSIONI\n\nAmianto:\n${mca.length>0?`Nell immobile sono stati rilevati ${mca.length} materiale/i contenente/i amianto (MCA).\n${mca.map((r,i)=>`  [${i+1}] ${r.descrizione||"-"} – Piano ${r.piano||"-"}, Locale ${r.locale||"-"}${r.urgenza?" – Urgenza "+r.urgenza:""}`).join("\n")}`:"L ispezione NON ha riscontrato materiali contenenti amianto."}\n\n${f.conclAmianto||""}\n\nAltre sostanze nocive (PCB, Pb, IPA, CFC/HFC):\n${mn.length>0?mn.map((r,i)=>`  [${i+1}] ${r.sostanza} – ${r.descrizione||"-"} – Piano ${r.piano||"-"}, Locale ${r.locale||"-"} – Conc.: ${r.concentrazione||"-"} mg/kg`).join("\n"):"L ispezione NON ha riscontrato materiali contenenti le sostanze nocive analizzate."}\n\n${f.conclNocive||""}\n\nGestione dei rifiuti:\n${f.rifiuti||"I materiali contenenti sostanze nocive dovranno essere smaltiti conformemente alle normative vigenti (OPSR – Modulo Rifiuti edili)."}\n\nRiserve:\n${f.riserveConc||"Nessuna riserva particolare. Prima di iniziare lavori su materiali non analizzati e necessario procedere a campionamento e analisi presso laboratorio accreditato."}\n\nObbligo di aggiornamento:\nIl presente rapporto dovra essere aggiornato al termine dei lavori di bonifica, conformemente a quanto previsto dalla normativa applicabile.${sep}Firma esperto: _________________________   Data: ${f.dataRapporto||today}\n\n${f.esperto||"---"}\nIPRAC Consulenze – Via Muraccio 6, CH-6612 Ascona\ninfo@iprac.ch | +41 91 780 5152\n\n---\nRapporto generato da Edilslab · ${today}\nDocumento con valore orientativo. L originale firmato dall esperto ha valore legale.`;
+}
+
+function TabellaAmianto({rows,onChange}){
+  const update=(id,field,val)=>onChange(rows.map(r=>r.id===id?{...r,[field]:val}:r));
+  const add=()=>onChange([...rows,{...EMPTY_ROW_AM,id:amNewId()}]);
+  const del=(id)=>onChange(rows.filter(r=>r.id!==id));
+  const th={fontSize:10,fontWeight:700,color:T.textSub,padding:"6px 7px",background:"#c8d0dc",border:"1px solid "+T.border,whiteSpace:"nowrap"};
+  const td={padding:"4px 5px",border:"1px solid "+T.border,verticalAlign:"top"};
+  const si={...inp,padding:"5px 7px",fontSize:12,minWidth:0};
+  return(<div style={{overflowX:"auto",marginBottom:12}}>
+    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+      <thead><tr>{["Piano","Locale","N°Elem","Materiale","Quantità","Tipo","Prelievo","N°Anal.","Amianto","Valut.","Scheda","Urgenza","Note",""].map((h,i)=><th key={i} style={th}>{h}</th>)}</tr></thead>
+      <tbody>{rows.map(r=>(
+        <tr key={r.id}>
+          <td style={td}><input style={{...si,width:60}} value={r.piano} onChange={e=>update(r.id,"piano",e.target.value)} placeholder="es. PT"/></td>
+          <td style={td}><input style={{...si,width:80}} value={r.locale} onChange={e=>update(r.id,"locale",e.target.value)} placeholder="es. Cucina"/></td>
+          <td style={td}><input style={{...si,width:50}} value={r.nElem} onChange={e=>update(r.id,"nElem",e.target.value)}/></td>
+          <td style={td}><input style={{...si,width:120}} value={r.descrizione} onChange={e=>update(r.id,"descrizione",e.target.value)} placeholder="es. Colla piastrelle"/></td>
+          <td style={td}><input style={{...si,width:70}} value={r.quantita} onChange={e=>update(r.id,"quantita",e.target.value)} placeholder="m²"/></td>
+          <td style={td}><select style={{...si,width:60}} value={r.tipo} onChange={e=>update(r.id,"tipo",e.target.value)}><option value="FA">FA</option><option value="DA">DA</option><option value="F">F</option></select></td>
+          <td style={td}><select style={{...si,width:60}} value={r.prelievo} onChange={e=>update(r.id,"prelievo",e.target.value)}><option value="SI">SI</option><option value="NO">NO</option></select></td>
+          <td style={td}><input style={{...si,width:55}} value={r.nAnalogia} onChange={e=>update(r.id,"nAnalogia",e.target.value)}/></td>
+          <td style={td}><select style={{...si,width:70}} value={r.presenza} onChange={e=>update(r.id,"presenza",e.target.value)}><option value="SI">SI</option><option value="NO">NO</option><option value="SI*">SI*</option></select></td>
+          <td style={td}><select style={{...si,width:55}} value={r.valutazione} onChange={e=>update(r.id,"valutazione",e.target.value)}><option value="L">L</option><option value="E">E</option><option value="D">D</option></select></td>
+          <td style={td}><input style={{...si,width:55}} value={r.schedaId} onChange={e=>update(r.id,"schedaId",e.target.value)}/></td>
+          <td style={td}><select style={{...si,width:60}} value={r.urgenza} onChange={e=>update(r.id,"urgenza",e.target.value)}><option value="">-</option><option value="I">I</option><option value="II">II</option><option value="III">III</option></select></td>
+          <td style={td}><input style={{...si,width:110}} value={r.note} onChange={e=>update(r.id,"note",e.target.value)}/></td>
+          <td style={{...td,textAlign:"center"}}><button onClick={()=>del(r.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#b0b8c4",fontSize:16,fontWeight:800,padding:"0 4px"}}>×</button></td>
+        </tr>
+      ))}</tbody>
+    </table>
+    <button onClick={add} style={{marginTop:8,padding:"6px 16px",background:"#eff6ff",color:T.blue,border:"1.5px solid #bfdbfe",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Aggiungi riga</button>
+    <div style={{marginTop:6,fontSize:11,color:T.textSub}}><strong>Tipo:</strong> FA=Fortemente agglomerato · DA=Debolmente agglomerato · F=Floccato &nbsp;|&nbsp; <strong>Valut.:</strong> L=Laboratorio · E=Esperto · D=Per difetto &nbsp;|&nbsp; <strong>SI*</strong>=Suscettibile/Per difetto</div>
+  </div>);
+}
+
+function TabellaNocive({rows,onChange}){
+  const update=(id,field,val)=>onChange(rows.map(r=>r.id===id?{...r,[field]:val}:r));
+  const add=()=>onChange([...rows,{...EMPTY_ROW_NOC,id:amNewId()}]);
+  const del=(id)=>onChange(rows.filter(r=>r.id!==id));
+  const th={fontSize:10,fontWeight:700,color:T.textSub,padding:"6px 7px",background:"#c8d0dc",border:"1px solid "+T.border,whiteSpace:"nowrap"};
+  const td={padding:"4px 5px",border:"1px solid "+T.border,verticalAlign:"top"};
+  const si={...inp,padding:"5px 7px",fontSize:12,minWidth:0};
+  return(<div style={{overflowX:"auto",marginBottom:12}}>
+    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+      <thead><tr>{["Piano","Locale","N°Elem","Materiale","Quantità","Prelievo","N°Anal.","Sostanza","Conc. (mg/kg)","Valut.","Scheda","Urgenza","Note",""].map((h,i)=><th key={i} style={th}>{h}</th>)}</tr></thead>
+      <tbody>{rows.map(r=>(
+        <tr key={r.id}>
+          <td style={td}><input style={{...si,width:60}} value={r.piano} onChange={e=>update(r.id,"piano",e.target.value)} placeholder="es. PT"/></td>
+          <td style={td}><input style={{...si,width:80}} value={r.locale} onChange={e=>update(r.id,"locale",e.target.value)}/></td>
+          <td style={td}><input style={{...si,width:50}} value={r.nElem} onChange={e=>update(r.id,"nElem",e.target.value)}/></td>
+          <td style={td}><input style={{...si,width:110}} value={r.descrizione} onChange={e=>update(r.id,"descrizione",e.target.value)}/></td>
+          <td style={td}><input style={{...si,width:65}} value={r.quantita} onChange={e=>update(r.id,"quantita",e.target.value)} placeholder="m²"/></td>
+          <td style={td}><select style={{...si,width:60}} value={r.prelievo} onChange={e=>update(r.id,"prelievo",e.target.value)}><option value="SI">SI</option><option value="NO">NO</option></select></td>
+          <td style={td}><input style={{...si,width:55}} value={r.nAnalogia} onChange={e=>update(r.id,"nAnalogia",e.target.value)}/></td>
+          <td style={td}><select style={{...si,width:80}} value={r.sostanza} onChange={e=>update(r.id,"sostanza",e.target.value)}><option value="">-</option><option value="PCB">PCB</option><option value="CP">CP</option><option value="Pb">Pb</option><option value="IPA">IPA</option><option value="CFC/HFC">CFC/HFC</option><option value="IC">IC (C10-C40)</option><option value="NO">NO</option></select></td>
+          <td style={td}><input style={{...si,width:80}} value={r.concentrazione} onChange={e=>update(r.id,"concentrazione",e.target.value)} placeholder="es. 12.5"/></td>
+          <td style={td}><select style={{...si,width:55}} value={r.valutazione} onChange={e=>update(r.id,"valutazione",e.target.value)}><option value="L">L</option><option value="E">E</option><option value="D">D</option></select></td>
+          <td style={td}><input style={{...si,width:55}} value={r.schedaId} onChange={e=>update(r.id,"schedaId",e.target.value)}/></td>
+          <td style={td}><select style={{...si,width:60}} value={r.urgenza} onChange={e=>update(r.id,"urgenza",e.target.value)}><option value="">-</option><option value="I">I</option><option value="II">II</option><option value="III">III</option></select></td>
+          <td style={td}><input style={{...si,width:110}} value={r.note} onChange={e=>update(r.id,"note",e.target.value)}/></td>
+          <td style={{...td,textAlign:"center"}}><button onClick={()=>del(r.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#b0b8c4",fontSize:16,fontWeight:800,padding:"0 4px"}}>×</button></td>
+        </tr>
+      ))}</tbody>
+    </table>
+    <button onClick={add} style={{marginTop:8,padding:"6px 16px",background:"#fff7ed",color:T.amber,border:"1.5px solid #fed7aa",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Aggiungi riga</button>
+  </div>);
+}
+
+function PeriziaAmiantoForm({user,onBack}){
+  const mob=useIsMobile();
+  const [amView,setAmView]=useState("form");
+  const [amTab,setAmTab]=useState("general");
+  const [amBusy,setAmBusy]=useState(false);
+  const [amCopied,setAmCopied]=useState(false);
+  const [amGen,setAmGen]=useState("");
+  const [amF,setAmF]=useState({
+    indirizzo:"",mappale:"",oggetto:"Casa d'abitazione",annoCost:"",committente:"",indirizzoCommittente:"",
+    nRapporto:"",esperto:"",dataRapporto:"",versione:"1.0",
+    tipoIspezione:"prima_lavori_ristrutturazione",comune:"",lavori:"",ispezioneP:false,
+    documentazione:"Sono stati forniti i piani dell immobile.",visitaP:"Nessuna.",
+    dataIspezione:"",limiti:"L ispezione ha interessato tutti i locali dell immobile.",
+    riserve:"Nessuna.",laboratorio:"ANALYSIS Lab SA/AG",
+    conclAmianto:"",conclNocive:"",
+    rifiuti:"I materiali contenenti sostanze nocive dovranno essere smaltiti conformemente alle normative vigenti (OPSR – Modulo Rifiuti edili).",
+    riserveConc:"Nessuna riserva particolare.",
+  });
+  const [rowsAm,setRowsAm]=useState([
+    {...EMPTY_ROW_AM,id:amNewId(),descrizione:"Colla piastrelle",tipo:"FA",prelievo:"SI",presenza:"NO",valutazione:"L"},
+    {...EMPTY_ROW_AM,id:amNewId(),descrizione:"Intonaco interno",tipo:"FA",prelievo:"SI",presenza:"NO",valutazione:"L",note:"Prelievo composito"},
+  ]);
+  const [rowsNoc,setRowsNoc]=useState([{...EMPTY_ROW_NOC,id:amNewId()}]);
+  const upd=(k,v)=>setAmF(prev=>({...prev,[k]:v}));
+  const doGen=()=>{setAmBusy(true);setTimeout(()=>{setAmGen(buildAmiantoReport(amF,rowsAm,rowsNoc));setAmBusy(false);setAmView("preview");},800);};
+  const doCopy=()=>{try{navigator.clipboard.writeText(amGen);setAmCopied(true);setTimeout(()=>setAmCopied(false),2000);}catch(e){}};
+  const gradRed="linear-gradient(135deg,#991b1b,#dc2626,#ef4444)";
+  const TABS=[{id:"general",label:"Intestazione"},{id:"ispezione",label:"Ispezione"},{id:"amianto",label:"Tabella Amianto"},{id:"nocive",label:"Altre Sostanze"},{id:"conclusioni",label:"Conclusioni"}];
+  const pc2={background:"#dce1ea",border:"1px solid "+T.border,borderRadius:13,padding:20,marginBottom:16};
+  const iL2={display:"block",fontSize:12,fontWeight:600,color:T.text,marginBottom:5};
+  const Row2=({label,children,req})=>(<div style={{marginBottom:14}}><label style={{...iL2,color:req?T.red:T.text}}>{label}{req?" *":""}</label>{children}</div>);
+  const Sec=({title,color,children})=>(<div style={{marginBottom:20}}><div style={{fontSize:12,fontWeight:800,textTransform:"uppercase",letterSpacing:"1px",color:color||T.blue,borderBottom:"2px solid "+(color||T.blue)+"30",paddingBottom:6,marginBottom:14}}>{title}</div>{children}</div>);
+
+  if(amView==="preview") return(
+    <div style={{maxWidth:800}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20,flexWrap:"wrap"}}>
+        <button onClick={()=>setAmView("form")} style={{background:"none",border:"none",cursor:"pointer",color:T.blue,fontSize:13,fontWeight:700,padding:0}}>← Modifica</button>
+        <span style={{color:"#b0b8c4"}}>|</span>
+        <span style={{fontSize:15,fontWeight:800,color:T.text}}>Anteprima Rapporto Amianto</span>
+        <div style={{marginLeft:"auto",display:"flex",gap:8,flexWrap:"wrap"}}>
+          <button onClick={doCopy} style={{padding:"7px 14px",background:amCopied?T.green:"#d6dce6",color:amCopied?"#fff":T.textSub,border:"1px solid "+T.border,borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>{amCopied?"✓ Copiato!":"Copia testo"}</button>
+          <button onClick={()=>setAmView("form")} style={{padding:"7px 14px",background:"#eff6ff",color:T.blue,border:"1px solid #bfdbfe",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>← Indietro</button>
+          <button onClick={onBack} style={{padding:"7px 14px",background:T.gradBlue,color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>Lista rapporti</button>
+        </div>
+      </div>
+      <div style={{background:"#dce1ea",border:"1px solid "+T.border,borderRadius:16,overflow:"hidden",boxShadow:T.shadowMd}}>
+        <div style={{background:gradRed,padding:"18px 26px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <div style={{width:36,height:36,background:"rgba(255,255,255,0.15)",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>⚠️</div>
+            <div><div style={{color:"#fff",fontWeight:800,fontSize:15}}>Ispezione Sostanze Nocive</div><div style={{color:"rgba(255,255,255,0.7)",fontSize:11}}>IPRAC Consulenze · ASCA v1.5</div></div>
+          </div>
+          <div style={{textAlign:"right"}}><div style={{color:"rgba(255,255,255,0.7)",fontSize:11}}>{new Date().toLocaleDateString("it-CH")}</div><div style={{color:"#fff",fontSize:12,fontWeight:700}}>{amF.nRapporto||"Bozza"}</div></div>
+        </div>
+        <div style={{padding:"24px 28px"}}><pre style={{fontFamily:"'Courier New',monospace",fontSize:12,lineHeight:1.8,color:T.text,whiteSpace:"pre-wrap",margin:0}}>{amGen}</pre></div>
+        <div style={{padding:"10px 26px",background:"#d6dce6",borderTop:"1px solid "+T.border,fontSize:11,color:T.textMuted}}>Generato da Edilslab · {new Date().toLocaleDateString("it-CH")} · Documento con valore orientativo. L originale firmato dall esperto ha valore legale.</div>
+      </div>
+    </div>
+  );
+
+  return(
+    <div style={{maxWidth:900}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
+        <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",color:T.blue,fontSize:13,fontWeight:700,padding:0}}>← Rapporti</button>
+        <span style={{color:"#b0b8c4"}}>|</span>
+        <span style={{fontSize:15,fontWeight:800,color:T.text}}>Perizia Amianto – ASCA v1.5</span>
+        <span style={{display:"inline-block",padding:"2px 8px",borderRadius:6,background:T.red+"15",color:T.red,fontSize:11,fontWeight:700}}>ASCA</span>
+      </div>
+      <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"10px 16px",marginBottom:20,fontSize:12,color:"#7f1d1d",display:"flex",gap:10,alignItems:"flex-start"}}>
+        <span style={{fontSize:16,flexShrink:0}}>⚠️</span>
+        <span>Compila i campi variabili del rapporto. Le sezioni fisse (basi legali, definizioni, metodi) vengono incluse automaticamente nel documento finale secondo il capitolato ASCA.</span>
+      </div>
+      <div style={{display:"flex",gap:4,marginBottom:20,flexWrap:"wrap"}}>
+        {TABS.map(t=>(<button key={t.id} onClick={()=>setAmTab(t.id)} style={{padding:"8px 16px",borderRadius:9,border:"1.5px solid "+(amTab===t.id?T.red:T.border),background:amTab===t.id?T.red+"15":"#dce1ea",color:amTab===t.id?T.red:T.textSub,fontSize:12,fontWeight:amTab===t.id?700:500,cursor:"pointer"}}>{t.label}</button>))}
+      </div>
+
+      {amTab==="general"&&(<div style={pc2}>
+        <Sec title="Oggetto dell ispezione" color={T.red}>
+          <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:14}}>
+            <Row2 label="Indirizzo immobile" req><input style={inp} placeholder="via dei Matti 0 – 6612 Ascona" value={amF.indirizzo} onChange={e=>upd("indirizzo",e.target.value)}/></Row2>
+            <Row2 label="Mappale RFD" req><input style={inp} placeholder="es. 1234" value={amF.mappale} onChange={e=>upd("mappale",e.target.value)}/></Row2>
+            <Row2 label="Oggetto"><input style={inp} placeholder="Casa d abitazione" value={amF.oggetto} onChange={e=>upd("oggetto",e.target.value)}/></Row2>
+            <Row2 label="Anno di costruzione"><input style={inp} placeholder="es. 1975 (rilevante se prima del 1991)" value={amF.annoCost} onChange={e=>upd("annoCost",e.target.value)}/></Row2>
+            <Row2 label="Comune" req><input style={inp} placeholder="es. Ascona" value={amF.comune} onChange={e=>upd("comune",e.target.value)}/></Row2>
+          </div>
+        </Sec>
+        <Sec title="Committente" color={T.blue}>
+          <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:14}}>
+            <Row2 label="Nome committente" req><input style={inp} placeholder="Sig. Mario Rossi" value={amF.committente} onChange={e=>upd("committente",e.target.value)}/></Row2>
+            <Row2 label="Indirizzo committente"><input style={inp} placeholder="via XXX | CH-XXXX Citta" value={amF.indirizzoCommittente} onChange={e=>upd("indirizzoCommittente",e.target.value)}/></Row2>
+          </div>
+        </Sec>
+        <Sec title="Rapporto" color={T.purple}>
+          <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr 1fr",gap:14}}>
+            <Row2 label="N° Rapporto" req><input style={inp} placeholder="es. AS-2026-01" value={amF.nRapporto} onChange={e=>upd("nRapporto",e.target.value)}/></Row2>
+            <Row2 label="Data rapporto"><input style={inp} type="date" value={amF.dataRapporto} onChange={e=>upd("dataRapporto",e.target.value)}/></Row2>
+            <Row2 label="Versione"><input style={inp} placeholder="1.0" value={amF.versione} onChange={e=>upd("versione",e.target.value)}/></Row2>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:14}}>
+            <Row2 label="Esperto responsabile"><input style={inp} placeholder="Nome Cognome" value={amF.esperto} onChange={e=>upd("esperto",e.target.value)}/></Row2>
+            <Row2 label="Tipo ispezione" req><select style={inp} value={amF.tipoIspezione} onChange={e=>upd("tipoIspezione",e.target.value)}>{TIPO_ISPEZIONE_OPTIONS.map(t=><option key={t.val} value={t.val}>{t.label}</option>)}</select></Row2>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4}}>
+            <input type="checkbox" id="amIspezioneP" checked={amF.ispezioneP} onChange={e=>upd("ispezioneP",e.target.checked)} style={{width:16,height:16,cursor:"pointer"}}/>
+            <label htmlFor="amIspezioneP" style={{fontSize:13,color:T.text,cursor:"pointer"}}>Ispezione parziale (non tutto l immobile)</label>
+          </div>
+        </Sec>
+      </div>)}
+
+      {amTab==="ispezione"&&(<div style={pc2}>
+        <Sec title="Dettagli dell ispezione" color={T.purple}>
+          <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:14}}>
+            <div style={{marginBottom:14}}><label style={iL2}>Data ispezione sul posto *</label><input style={inp} type="date" value={amF.dataIspezione} onChange={e=>upd("dataIspezione",e.target.value)}/></div>
+            <div style={{marginBottom:14}}><label style={iL2}>Laboratorio analisi</label><input style={inp} placeholder="es. ANALYSIS Lab SA/AG" value={amF.laboratorio} onChange={e=>upd("laboratorio",e.target.value)}/></div>
+          </div>
+          <div style={{marginBottom:14}}><label style={iL2}>Lavori previsti (uno per riga) *</label><textarea style={{...inp,minHeight:80,resize:"vertical",lineHeight:1.6}} placeholder={"es. Demolizione tramezzi interni\nSostituzione pavimentazioni\nRifacimento intonaci"} value={amF.lavori} onChange={e=>upd("lavori",e.target.value)}/></div>
+          <div style={{marginBottom:14}}><label style={iL2}>Documentazione a disposizione</label><input style={inp} value={amF.documentazione} onChange={e=>upd("documentazione",e.target.value)}/></div>
+          <div style={{marginBottom:14}}><label style={iL2}>Visita preliminare</label><input style={inp} placeholder="Nessuna. / Data e note..." value={amF.visitaP} onChange={e=>upd("visitaP",e.target.value)}/></div>
+          <div style={{marginBottom:14}}><label style={iL2}>Limiti dell ispezione</label><textarea style={{...inp,minHeight:60,resize:"vertical",lineHeight:1.6}} value={amF.limiti} onChange={e=>upd("limiti",e.target.value)}/></div>
+          <div style={{marginBottom:14}}><label style={iL2}>Riserve</label><textarea style={{...inp,minHeight:60,resize:"vertical",lineHeight:1.6}} placeholder="Nessuna. / Locali non accessibili: ..." value={amF.riserve} onChange={e=>upd("riserve",e.target.value)}/></div>
+        </Sec>
+      </div>)}
+
+      {amTab==="amianto"&&(<div style={pc2}>
+        <div style={{fontSize:12,fontWeight:800,textTransform:"uppercase",letterSpacing:"1px",color:T.red,borderBottom:"2px solid "+T.red+"30",paddingBottom:6,marginBottom:14}}>Materiali suscettibili di contenere amianto (MSCA)</div>
+        <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"8px 13px",marginBottom:14,fontSize:12,color:"#7f1d1d"}}>Inserisci tutti i materiali analizzati. Per i materiali con <strong>SI*</strong> (amianto per difetto), specificare nelle note.</div>
+        <TabellaAmianto rows={rowsAm} onChange={setRowsAm}/>
+      </div>)}
+
+      {amTab==="nocive"&&(<div style={pc2}>
+        <div style={{fontSize:12,fontWeight:800,textTransform:"uppercase",letterSpacing:"1px",color:T.amber,borderBottom:"2px solid "+T.amber+"30",paddingBottom:6,marginBottom:14}}>Materiali suscettibili di contenere altre sostanze nocive (MSCSN)</div>
+        <div style={{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:8,padding:"8px 13px",marginBottom:14,fontSize:12,color:"#78350f"}}>Inserisci i materiali analizzati per PCB, Piombo (Pb), IPA, CFC/HFC e idrocarburi (C10-C40).</div>
+        <TabellaNocive rows={rowsNoc} onChange={setRowsNoc}/>
+      </div>)}
+
+      {amTab==="conclusioni"&&(<div style={pc2}>
+        <div style={{fontSize:12,fontWeight:800,textTransform:"uppercase",letterSpacing:"1px",color:T.red,borderBottom:"2px solid "+T.red+"30",paddingBottom:6,marginBottom:14}}>Conclusioni amianto</div>
+        <div style={{marginBottom:14}}><label style={iL2}>Note conclusive amianto (facoltativo)</label><textarea style={{...inp,minHeight:80,resize:"vertical",lineHeight:1.6}} placeholder="es. I materiali con grado d urgenza III dovranno essere bonificati prima dell inizio dei lavori..." value={amF.conclAmianto} onChange={e=>upd("conclAmianto",e.target.value)}/></div>
+        <div style={{fontSize:12,fontWeight:800,textTransform:"uppercase",letterSpacing:"1px",color:T.amber,borderBottom:"2px solid "+T.amber+"30",paddingBottom:6,marginBottom:14,marginTop:8}}>Conclusioni altre sostanze nocive</div>
+        <div style={{marginBottom:14}}><label style={iL2}>Note conclusive sostanze nocive (facoltativo)</label><textarea style={{...inp,minHeight:80,resize:"vertical",lineHeight:1.6}} value={amF.conclNocive} onChange={e=>upd("conclNocive",e.target.value)}/></div>
+        <div style={{fontSize:12,fontWeight:800,textTransform:"uppercase",letterSpacing:"1px",color:T.purple,borderBottom:"2px solid "+T.purple+"30",paddingBottom:6,marginBottom:14,marginTop:8}}>Gestione rifiuti e riserve</div>
+        <div style={{marginBottom:14}}><label style={iL2}>Gestione dei rifiuti</label><textarea style={{...inp,minHeight:70,resize:"vertical",lineHeight:1.6}} value={amF.rifiuti} onChange={e=>upd("rifiuti",e.target.value)}/></div>
+        <div style={{marginBottom:14}}><label style={iL2}>Riserve finali</label><textarea style={{...inp,minHeight:70,resize:"vertical",lineHeight:1.6}} value={amF.riserveConc} onChange={e=>upd("riserveConc",e.target.value)}/></div>
+      </div>)}
+
+      <div style={{display:"flex",gap:12,alignItems:"center",marginTop:4}}>
+        <button onClick={doGen} disabled={amBusy} style={{padding:"12px 28px",background:amBusy?"#c4ccd8":"linear-gradient(135deg,#991b1b,#dc2626,#ef4444)",color:amBusy?T.textMuted:"#fff",border:"none",borderRadius:11,fontSize:14,fontWeight:700,cursor:amBusy?"default":"pointer",boxShadow:amBusy?"none":"0 4px 14px rgba(220,38,38,0.3)"}}>
+          {amBusy?"Generazione...":"⚠️ Genera rapporto amianto"}
+        </button>
+        <span style={{fontSize:12,color:T.textMuted}}>Le sezioni fisse (basi legali, definizioni, ecc.) vengono incluse automaticamente.</span>
+      </div>
+    </div>
+  );
+}
+
 // ─── REPORTS ─────────────────────────────────────────────────────────────────
 function Reports({user}){
   const mob=useIsMobile();const [view,setView]=useState("list");
   const {salva,saved:projSaved,modalJSX}=useSalvaInProgetto(user?.email||"guest");const [tmpl,setTmpl]=useState(null);const [fields,setFields]=useState({});const [gen,setGen]=useState("");const [busy,setBusy]=useState(false);const [copied,setCopied]=useState(false);
+  const [showAmianto,setShowAmianto]=useState(false);
   const [saved,setSaved]=useState([{id:1,nome:"Perizia strutturale via Lugano 12",tipo:"Perizia Strutturale",data:"12.05.2024",color:T.blue,createdAt:Date.now()-25*86400000},{id:2,nome:"Ispezione Cantiere B",tipo:"Rapporto di Ispezione",data:"20.05.2024",color:T.purple,createdAt:Date.now()-5*86400000}]);
   const daysLeft=ca=>Math.max(0,30-Math.floor((Date.now()-ca)/86400000));
   const doGen=()=>{setBusy(true);setTimeout(()=>{setGen(genReport(tmpl,fields));setBusy(false);setView("preview");},1400);};
   const doSave=()=>{setSaved(sv=>[...sv,{id:Date.now(),nome:fields.oggetto||fields.cantiere||fields.opera||fields.tipo||"Rapporto",tipo:tmpl.label,data:new Date().toLocaleDateString("it-CH"),color:tmpl.color,createdAt:Date.now()}]);setView("list");};
   const pc={background:"#dce1ea",border:"1px solid "+T.border,borderRadius:14,padding:22,boxShadow:T.shadow};
-  if(view==="list")return(<div><div style={{fontSize:11,fontWeight:700,color:T.textSub,marginBottom:14,textTransform:"uppercase",letterSpacing:"0.8px"}}>Nuovo rapporto</div><div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(4,1fr)",gap:14,marginBottom:28}}>{TMPLS.map(t=>(<div key={t.id} onClick={()=>{setTmpl(t);setFields({});setGen("");setView("form");}} style={{background:"#dce1ea",border:"1.5px solid "+t.color+"25",borderRadius:14,padding:18,cursor:"pointer",boxShadow:T.shadow}}><div style={{width:40,height:40,borderRadius:11,background:t.color+"15",display:"flex",alignItems:"center",justifyContent:"center",color:t.color,marginBottom:12}}><Icon d={PATHS[t.icon]||PATHS.file} size={19}/></div><div style={{fontSize:13,fontWeight:800,color:T.text,marginBottom:5}}>{t.label}</div><div style={{fontSize:12,color:T.textSub,lineHeight:1.5}}>{t.desc}</div></div>))}</div>{saved.length>0&&(<div><div style={{fontSize:11,fontWeight:700,color:T.textSub,marginBottom:14,textTransform:"uppercase",letterSpacing:"0.8px"}}>Rapporti salvati</div><div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:12}}>{saved.map(r=>{const left=daysLeft(r.createdAt);const urg=left<=7;return(<div key={r.id} style={{background:"#dce1ea",border:"1px solid "+(urg?"#fecaca":T.border),borderRadius:12,padding:16,display:"flex",alignItems:"center",gap:14,boxShadow:T.shadow}}><div style={{width:38,height:38,borderRadius:10,background:r.color+"15",display:"flex",alignItems:"center",justifyContent:"center",color:r.color,flexShrink:0}}><Icon d={PATHS.file} size={17}/></div><div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.nome}</div><div style={{fontSize:11,color:T.textMuted}}>{r.tipo} · {r.data}</div><div style={{fontSize:11,marginTop:2,color:urg?T.red:T.textMuted,fontWeight:urg?700:400}}>{left===0?"Scade oggi":left<=7?"Scade tra "+left+"gg":"Eliminazione tra "+left+" giorni"}</div></div><button onClick={()=>setSaved(sv=>sv.filter(x=>x.id!==r.id))} style={{background:"none",border:"none",cursor:"pointer",color:"#b0b8c4",padding:6}}><Icon d={PATHS.trash} size={16}/></button></div>);})}</div></div>)}</div>);
+
+  if(showAmianto) return <PeriziaAmiantoForm user={user} onBack={()=>setShowAmianto(false)}/>;
+
+  if(view==="list")return(<div><div style={{fontSize:11,fontWeight:700,color:T.textSub,marginBottom:14,textTransform:"uppercase",letterSpacing:"0.8px"}}>Nuovo rapporto</div><div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(5,1fr)",gap:14,marginBottom:28}}>{TMPLS.map(t=>(<div key={t.id} onClick={()=>{if(t.id==="amianto"){setShowAmianto(true);return;}setTmpl(t);setFields({});setGen("");setView("form");}} style={{background:"#dce1ea",border:"1.5px solid "+t.color+"25",borderRadius:14,padding:18,cursor:"pointer",boxShadow:T.shadow}}><div style={{width:40,height:40,borderRadius:11,background:t.color+"15",display:"flex",alignItems:"center",justifyContent:"center",color:t.color,marginBottom:12}}><Icon d={PATHS[t.icon]||PATHS.file} size={19}/></div><div style={{fontSize:13,fontWeight:800,color:T.text,marginBottom:5}}>{t.label}</div><div style={{fontSize:12,color:T.textSub,lineHeight:1.5}}>{t.desc}</div></div>))}</div>{saved.length>0&&(<div><div style={{fontSize:11,fontWeight:700,color:T.textSub,marginBottom:14,textTransform:"uppercase",letterSpacing:"0.8px"}}>Rapporti salvati</div><div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:12}}>{saved.map(r=>{const left=daysLeft(r.createdAt);const urg=left<=7;return(<div key={r.id} style={{background:"#dce1ea",border:"1px solid "+(urg?"#fecaca":T.border),borderRadius:12,padding:16,display:"flex",alignItems:"center",gap:14,boxShadow:T.shadow}}><div style={{width:38,height:38,borderRadius:10,background:r.color+"15",display:"flex",alignItems:"center",justifyContent:"center",color:r.color,flexShrink:0}}><Icon d={PATHS.file} size={17}/></div><div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:700,color:T.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.nome}</div><div style={{fontSize:11,color:T.textMuted}}>{r.tipo} · {r.data}</div><div style={{fontSize:11,marginTop:2,color:urg?T.red:T.textMuted,fontWeight:urg?700:400}}>{left===0?"Scade oggi":left<=7?"Scade tra "+left+"gg":"Eliminazione tra "+left+" giorni"}</div></div><button onClick={()=>setSaved(sv=>sv.filter(x=>x.id!==r.id))} style={{background:"none",border:"none",cursor:"pointer",color:"#b0b8c4",padding:6}}><Icon d={PATHS.trash} size={16}/></button></div>);})}</div></div>)}</div>);
   if(view==="form"&&tmpl)return(<div style={{maxWidth:620}}><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}><button onClick={()=>setView("list")} style={{background:"none",border:"none",cursor:"pointer",color:T.blue,fontSize:13,fontWeight:700,padding:0}}>Indietro</button><span style={{color:"#b0b8c4"}}>|</span><span style={{fontSize:15,fontWeight:800,color:T.text}}>{tmpl.label}</span></div><div style={pc}><div style={{background:tmpl.color+"0c",border:"1px solid "+tmpl.color+"25",borderRadius:10,padding:"10px 14px",marginBottom:20,fontSize:12,color:tmpl.color,fontWeight:600}}>{tmpl.id==="libero"?"Descrivi liberamente, l AI generera un rapporto professionale":"Compila i campi, l AI formattera il rapporto"}</div>{tmpl.fields.map(f=>(<div key={f.k} style={{marginBottom:16}}><label style={{display:"block",fontSize:13,fontWeight:600,color:T.text,marginBottom:6}}>{f.l}</label>{f.ta?<textarea style={{...inp,resize:"vertical",minHeight:f.rows?f.rows*24:80,lineHeight:1.6}} placeholder={f.ph} value={fields[f.k]||""} onChange={e=>setFields(fv=>({...fv,[f.k]:e.target.value}))}/>:<input style={inp} placeholder={f.ph} value={fields[f.k]||""} onChange={e=>setFields(fv=>({...fv,[f.k]:e.target.value}))}/>}</div>))}<button onClick={doGen} disabled={busy} style={{...btnP,background:busy?"#c4ccd8":T.gradBlue,color:busy?T.textMuted:"#fff"}}>{busy?"Generazione in corso...":"Genera rapporto"}</button></div></div>);
   if(view==="preview")return(<><div style={{maxWidth:700}}><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20,flexWrap:"wrap"}}><button onClick={()=>setView("form")} style={{background:"none",border:"none",cursor:"pointer",color:T.blue,fontSize:13,fontWeight:700,padding:0}}>Modifica</button><span style={{color:"#b0b8c4"}}>|</span><span style={{fontSize:15,fontWeight:800,color:T.text}}>Anteprima</span><div style={{marginLeft:"auto",display:"flex",gap:8,flexWrap:"wrap"}}><button onClick={()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);}} style={{padding:"7px 14px",background:copied?T.green:"#d6dce6",color:copied?"#fff":T.textSub,border:"1px solid "+T.border,borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>{copied?"Copiato!":"Copia testo"}</button><button style={{padding:"7px 14px",background:"#eff6ff",color:T.blue,border:"1px solid #bfdbfe",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>Word</button><button style={{padding:"7px 14px",background:"#fef2f2",color:"#ef4444",border:"1px solid #fecaca",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>PDF</button><button style={{padding:"7px 14px",background:"#f0fdf4",color:T.green,border:"1px solid #bbf7d0",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>Excel</button><button onClick={doSave} style={{padding:"7px 16px",background:T.gradBlue,color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>Salva</button><button onClick={()=>salva("rapporto",gen)} style={{padding:"7px 14px",background:projSaved?"#f0fdf4":"#d6dce6",color:projSaved?T.green:T.textSub,border:"1px solid "+(projSaved?"#bbf7d0":T.border),borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>{projSaved?"✓ Salvato":"💾 Progetto"}</button></div></div><div style={{background:"#dce1ea",border:"1px solid "+T.border,borderRadius:16,overflow:"hidden",boxShadow:T.shadowMd}}><div style={{background:T.gradBlue,padding:"20px 28px",display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:38,height:38,background:"rgba(255,255,255,0.15)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d={PATHS.building} size={20} stroke="#fff"/></div><div><div style={{color:"#fff",fontWeight:800,fontSize:16}}>Edilslab</div><div style={{color:"rgba(255,255,255,0.7)",fontSize:11}}>Svizzera Italiana</div></div></div><div style={{textAlign:"right"}}><div style={{color:"rgba(255,255,255,0.7)",fontSize:11}}>{new Date().toLocaleDateString("it-CH")}</div><div style={{color:"#fff",fontSize:12,fontWeight:700}}>{tmpl.label}</div></div></div><div style={{padding:mob?20:32}}><pre style={{fontFamily:"inherit",fontSize:13,lineHeight:1.85,color:T.text,whiteSpace:"pre-wrap",margin:0}}>{gen}</pre></div><div style={{padding:"12px 28px",background:"#d6dce6",borderTop:"1px solid "+T.border,fontSize:11,color:T.textMuted}}>Generato da Edilslab · {new Date().toLocaleDateString("it-CH")} · Verificare con professionista abilitato</div></div></div>{modalJSX}</>);
   return null;
