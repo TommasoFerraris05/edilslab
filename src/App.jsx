@@ -1841,12 +1841,58 @@ function TabellaNocive({rows,onChange}){
   </div>);
 }
 
+// ── Componenti fuori da PeriziaAmiantoForm per evitare re-mount ad ogni render ──
+function AmRow({label,children,req}){
+  return(<div style={{marginBottom:14}}><label style={{display:"block",fontSize:12,fontWeight:600,color:req?T.red:T.text,marginBottom:5}}>{label}{req?" *":""}</label>{children}</div>);
+}
+function AmSec({title,color,children}){
+  return(<div style={{marginBottom:20}}><div style={{fontSize:12,fontWeight:800,textTransform:"uppercase",letterSpacing:"1px",color:color||T.blue,borderBottom:"2px solid "+(color||T.blue)+"30",paddingBottom:6,marginBottom:14}}>{title}</div>{children}</div>);
+}
+
+async function downloadAmiantoWord(text, nRapporto){
+  // Genera un .docx minimale con il testo del rapporto usando docx CDN
+  let docxLib = window.docx;
+  if(!docxLib){
+    await new Promise((res,rej)=>{
+      const s=document.createElement("script");
+      s.src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js";
+      s.onload=()=>{docxLib=window.docx;res();};
+      s.onerror=()=>rej(new Error("Impossibile caricare docx"));
+      document.head.appendChild(s);
+    });
+  }
+  const {Document,Packer,Paragraph,TextRun,Header,AlignmentType,BorderStyle,WidthType,Table,TableRow,TableCell,ShadingType}=docxLib;
+  const lines = text.split("\n");
+  const children = lines.map(line => new Paragraph({
+    children:[new TextRun({text:line,font:"Arial",size:20})],
+    spacing:{before:40,after:40},
+  }));
+  const doc = new Document({
+    styles:{default:{document:{run:{font:"Arial",size:20}}}},
+    sections:[{
+      properties:{page:{size:{width:11906,height:16838},margin:{top:1000,bottom:1000,left:1200,right:1200}}},
+      headers:{default:new Header({children:[
+        new Paragraph({children:[
+          new TextRun({text:"IPRAC Consulenze – Rapporto Ispezione Sostanze Nocive",bold:true,color:"1F4E79",font:"Arial",size:18})
+        ],alignment:AlignmentType.RIGHT})
+      ]})},
+      children,
+    }]
+  });
+  const blob = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href=url; a.download=`Rapporto_Amianto_${nRapporto||"bozza"}.docx`; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+}
+
 function PeriziaAmiantoForm({user,onBack}){
   const mob=useIsMobile();
   const [amView,setAmView]=useState("form");
   const [amTab,setAmTab]=useState("general");
   const [amBusy,setAmBusy]=useState(false);
   const [amCopied,setAmCopied]=useState(false);
+  const [amWordBusy,setAmWordBusy]=useState(false);
   const [amGen,setAmGen]=useState("");
   const [amF,setAmF]=useState({
     indirizzo:"",mappale:"",oggetto:"Casa d'abitazione",annoCost:"",committente:"",indirizzoCommittente:"",
@@ -1867,12 +1913,12 @@ function PeriziaAmiantoForm({user,onBack}){
   const upd=(k,v)=>setAmF(prev=>({...prev,[k]:v}));
   const doGen=()=>{setAmBusy(true);setTimeout(()=>{setAmGen(buildAmiantoReport(amF,rowsAm,rowsNoc));setAmBusy(false);setAmView("preview");},800);};
   const doCopy=()=>{try{navigator.clipboard.writeText(amGen);setAmCopied(true);setTimeout(()=>setAmCopied(false),2000);}catch(e){}};
+  const doWordDownload=async()=>{setAmWordBusy(true);try{await downloadAmiantoWord(amGen,amF.nRapporto);}catch(e){alert("Errore Word: "+e.message);}setAmWordBusy(false);};
   const gradRed="linear-gradient(135deg,#991b1b,#dc2626,#ef4444)";
   const TABS=[{id:"general",label:"Intestazione"},{id:"ispezione",label:"Ispezione"},{id:"amianto",label:"Tabella Amianto"},{id:"nocive",label:"Altre Sostanze"},{id:"conclusioni",label:"Conclusioni"}];
   const pc2={background:"#dce1ea",border:"1px solid "+T.border,borderRadius:13,padding:20,marginBottom:16};
   const iL2={display:"block",fontSize:12,fontWeight:600,color:T.text,marginBottom:5};
-  const Row2=({label,children,req})=>(<div style={{marginBottom:14}}><label style={{...iL2,color:req?T.red:T.text}}>{label}{req?" *":""}</label>{children}</div>);
-  const Sec=({title,color,children})=>(<div style={{marginBottom:20}}><div style={{fontSize:12,fontWeight:800,textTransform:"uppercase",letterSpacing:"1px",color:color||T.blue,borderBottom:"2px solid "+(color||T.blue)+"30",paddingBottom:6,marginBottom:14}}>{title}</div>{children}</div>);
+  // Row2 e Sec sono definiti fuori dalla funzione (sopra) per evitare re-mount ad ogni render
 
   if(amView==="preview") return(
     <div style={{maxWidth:800}}>
@@ -1882,7 +1928,7 @@ function PeriziaAmiantoForm({user,onBack}){
         <span style={{fontSize:15,fontWeight:800,color:T.text}}>Anteprima Rapporto Amianto</span>
         <div style={{marginLeft:"auto",display:"flex",gap:8,flexWrap:"wrap"}}>
           <button onClick={doCopy} style={{padding:"7px 14px",background:amCopied?T.green:"#d6dce6",color:amCopied?"#fff":T.textSub,border:"1px solid "+T.border,borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>{amCopied?"✓ Copiato!":"Copia testo"}</button>
-          <button onClick={()=>setAmView("form")} style={{padding:"7px 14px",background:"#eff6ff",color:T.blue,border:"1px solid #bfdbfe",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>← Indietro</button>
+          <button onClick={doWordDownload} disabled={amWordBusy} style={{padding:"7px 14px",background:amWordBusy?"#c4ccd8":"#eff6ff",color:amWordBusy?T.textMuted:T.blue,border:"1px solid #bfdbfe",borderRadius:8,fontSize:12,fontWeight:700,cursor:amWordBusy?"default":"pointer"}}>{amWordBusy?"Generazione...":"⬇ Scarica Word"}</button>
           <button onClick={onBack} style={{padding:"7px 14px",background:T.gradBlue,color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer"}}>Lista rapporti</button>
         </div>
       </div>
@@ -1917,40 +1963,40 @@ function PeriziaAmiantoForm({user,onBack}){
       </div>
 
       {amTab==="general"&&(<div style={pc2}>
-        <Sec title="Oggetto dell ispezione" color={T.red}>
+        <AmSec title="Oggetto dell ispezione" color={T.red}>
           <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:14}}>
-            <Row2 label="Indirizzo immobile" req><input style={inp} placeholder="via dei Matti 0 – 6612 Ascona" value={amF.indirizzo} onChange={e=>upd("indirizzo",e.target.value)}/></Row2>
-            <Row2 label="Mappale RFD" req><input style={inp} placeholder="es. 1234" value={amF.mappale} onChange={e=>upd("mappale",e.target.value)}/></Row2>
-            <Row2 label="Oggetto"><input style={inp} placeholder="Casa d abitazione" value={amF.oggetto} onChange={e=>upd("oggetto",e.target.value)}/></Row2>
-            <Row2 label="Anno di costruzione"><input style={inp} placeholder="es. 1975 (rilevante se prima del 1991)" value={amF.annoCost} onChange={e=>upd("annoCost",e.target.value)}/></Row2>
-            <Row2 label="Comune" req><input style={inp} placeholder="es. Ascona" value={amF.comune} onChange={e=>upd("comune",e.target.value)}/></Row2>
+            <AmRow label="Indirizzo immobile" req><input style={inp} placeholder="via dei Matti 0 – 6612 Ascona" value={amF.indirizzo} onChange={e=>upd("indirizzo",e.target.value)}/></AmRow>
+            <AmRow label="Mappale RFD" req><input style={inp} placeholder="es. 1234" value={amF.mappale} onChange={e=>upd("mappale",e.target.value)}/></AmRow>
+            <AmRow label="Oggetto"><input style={inp} placeholder="Casa d abitazione" value={amF.oggetto} onChange={e=>upd("oggetto",e.target.value)}/></AmRow>
+            <AmRow label="Anno di costruzione"><input style={inp} placeholder="es. 1975 (rilevante se prima del 1991)" value={amF.annoCost} onChange={e=>upd("annoCost",e.target.value)}/></AmRow>
+            <AmRow label="Comune" req><input style={inp} placeholder="es. Ascona" value={amF.comune} onChange={e=>upd("comune",e.target.value)}/></AmRow>
           </div>
-        </Sec>
-        <Sec title="Committente" color={T.blue}>
+        </AmSec>
+        <AmSec title="Committente" color={T.blue}>
           <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:14}}>
-            <Row2 label="Nome committente" req><input style={inp} placeholder="Sig. Mario Rossi" value={amF.committente} onChange={e=>upd("committente",e.target.value)}/></Row2>
-            <Row2 label="Indirizzo committente"><input style={inp} placeholder="via XXX | CH-XXXX Citta" value={amF.indirizzoCommittente} onChange={e=>upd("indirizzoCommittente",e.target.value)}/></Row2>
+            <AmRow label="Nome committente" req><input style={inp} placeholder="Sig. Mario Rossi" value={amF.committente} onChange={e=>upd("committente",e.target.value)}/></AmRow>
+            <AmRow label="Indirizzo committente"><input style={inp} placeholder="via XXX | CH-XXXX Citta" value={amF.indirizzoCommittente} onChange={e=>upd("indirizzoCommittente",e.target.value)}/></AmRow>
           </div>
-        </Sec>
-        <Sec title="Rapporto" color={T.purple}>
+        </AmSec>
+        <AmSec title="Rapporto" color={T.purple}>
           <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr 1fr",gap:14}}>
-            <Row2 label="N° Rapporto" req><input style={inp} placeholder="es. AS-2026-01" value={amF.nRapporto} onChange={e=>upd("nRapporto",e.target.value)}/></Row2>
-            <Row2 label="Data rapporto"><input style={inp} type="date" value={amF.dataRapporto} onChange={e=>upd("dataRapporto",e.target.value)}/></Row2>
-            <Row2 label="Versione"><input style={inp} placeholder="1.0" value={amF.versione} onChange={e=>upd("versione",e.target.value)}/></Row2>
+            <AmRow label="N° Rapporto" req><input style={inp} placeholder="es. AS-2026-01" value={amF.nRapporto} onChange={e=>upd("nRapporto",e.target.value)}/></AmRow>
+            <AmRow label="Data rapporto"><input style={inp} type="date" value={amF.dataRapporto} onChange={e=>upd("dataRapporto",e.target.value)}/></AmRow>
+            <AmRow label="Versione"><input style={inp} placeholder="1.0" value={amF.versione} onChange={e=>upd("versione",e.target.value)}/></AmRow>
           </div>
           <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:14}}>
-            <Row2 label="Esperto responsabile"><input style={inp} placeholder="Nome Cognome" value={amF.esperto} onChange={e=>upd("esperto",e.target.value)}/></Row2>
-            <Row2 label="Tipo ispezione" req><select style={inp} value={amF.tipoIspezione} onChange={e=>upd("tipoIspezione",e.target.value)}>{TIPO_ISPEZIONE_OPTIONS.map(t=><option key={t.val} value={t.val}>{t.label}</option>)}</select></Row2>
+            <AmRow label="Esperto responsabile"><input style={inp} placeholder="Nome Cognome" value={amF.esperto} onChange={e=>upd("esperto",e.target.value)}/></AmRow>
+            <AmRow label="Tipo ispezione" req><select style={inp} value={amF.tipoIspezione} onChange={e=>upd("tipoIspezione",e.target.value)}>{TIPO_ISPEZIONE_OPTIONS.map(t=><option key={t.val} value={t.val}>{t.label}</option>)}</select></AmRow>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4}}>
             <input type="checkbox" id="amIspezioneP" checked={amF.ispezioneP} onChange={e=>upd("ispezioneP",e.target.checked)} style={{width:16,height:16,cursor:"pointer"}}/>
             <label htmlFor="amIspezioneP" style={{fontSize:13,color:T.text,cursor:"pointer"}}>Ispezione parziale (non tutto l immobile)</label>
           </div>
-        </Sec>
+        </AmSec>
       </div>)}
 
       {amTab==="ispezione"&&(<div style={pc2}>
-        <Sec title="Dettagli dell ispezione" color={T.purple}>
+        <AmSec title="Dettagli dell ispezione" color={T.purple}>
           <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:14}}>
             <div style={{marginBottom:14}}><label style={iL2}>Data ispezione sul posto *</label><input style={inp} type="date" value={amF.dataIspezione} onChange={e=>upd("dataIspezione",e.target.value)}/></div>
             <div style={{marginBottom:14}}><label style={iL2}>Laboratorio analisi</label><input style={inp} placeholder="es. ANALYSIS Lab SA/AG" value={amF.laboratorio} onChange={e=>upd("laboratorio",e.target.value)}/></div>
@@ -1960,7 +2006,7 @@ function PeriziaAmiantoForm({user,onBack}){
           <div style={{marginBottom:14}}><label style={iL2}>Visita preliminare</label><input style={inp} placeholder="Nessuna. / Data e note..." value={amF.visitaP} onChange={e=>upd("visitaP",e.target.value)}/></div>
           <div style={{marginBottom:14}}><label style={iL2}>Limiti dell ispezione</label><textarea style={{...inp,minHeight:60,resize:"vertical",lineHeight:1.6}} value={amF.limiti} onChange={e=>upd("limiti",e.target.value)}/></div>
           <div style={{marginBottom:14}}><label style={iL2}>Riserve</label><textarea style={{...inp,minHeight:60,resize:"vertical",lineHeight:1.6}} placeholder="Nessuna. / Locali non accessibili: ..." value={amF.riserve} onChange={e=>upd("riserve",e.target.value)}/></div>
-        </Sec>
+        </AmSec>
       </div>)}
 
       {amTab==="amianto"&&(<div style={pc2}>
@@ -2164,37 +2210,100 @@ function Verbali({user}){
   const [view,setView]=useState("list");
   const [verbali,setVerbali]=useState([]);
   const [vb,setVb]=useState(initVerbale());
-  const [tab,setTab]=useState("info");
+  const [tab,setTab]=useState("voce");
   const [generating,setGenerating]=useState(false);
   const [genErr,setGenErr]=useState("");
-  const [listening,setListening]=useState(false);
-  const [voceTarget,setVoceTarget]=useState(null);
+  // Voce globale: 2 campi liberi + AI che compila
+  const [voce1,setVoce1]=useState("");
+  const [voce2,setVoce2]=useState("");
+  const [voceListening,setVoceListening]=useState(null); // null | 1 | 2
+  const [voceLoading,setVoceLoading]=useState(false);
   const recognRef=useRef(null);
 
-  const startVoice=(target)=>{
+  const startVoce=(num)=>{
     const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     if(!SR){alert("Riconoscimento vocale non supportato. Usa Chrome o Edge.");return;}
     if(recognRef.current)recognRef.current.stop();
     const r=new SR();
     r.lang="it-IT";r.continuous=false;r.interimResults=false;
-    r.onstart=()=>{setListening(true);setVoceTarget(target);};
+    r.onstart=()=>setVoceListening(num);
     r.onresult=(e)=>{
       const txt=e.results[0][0].transcript.trim();
-      setVb(prev=>{
-        const next={...prev};
-        if(target.section==="info") next[target.field]=txt;
-        else if(target.section==="prog"){const a=[...next.prog];a[target.idx]={...a[target.idx],[target.field]:txt};next.prog=a;}
-        else if(target.section==="art"){const a=[...next.art];a[target.idx]={...a[target.idx],[target.field]:txt};next.art=a;}
-        else if(target.section==="trat"){const a=[...next.trattande];a[target.idx]={...a[target.idx],[target.field]:txt};next.trattande=a;}
-        return next;
-      });
-      setListening(false);setVoceTarget(null);
+      if(num===1) setVoce1(txt);
+      else setVoce2(txt);
+      setVoceListening(null);
     };
-    r.onerror=r.onend=()=>{setListening(false);setVoceTarget(null);};
+    r.onerror=r.onend=()=>setVoceListening(null);
     recognRef.current=r;r.start();
   };
-  const stopVoice=()=>recognRef.current?.stop();
-  const isActive=(t)=>listening&&voceTarget&&JSON.stringify(voceTarget)===JSON.stringify(t);
+  const stopVoce=()=>{recognRef.current?.stop();setVoceListening(null);};
+
+  // AI interpreta i messaggi vocali e compila il verbale
+  const aiCompila=async()=>{
+    const testo=(voce1+" "+voce2).trim();
+    if(!testo){alert("Inserisci almeno un messaggio vocale o testuale.");return;}
+    setVoceLoading(true);setGenErr("");
+    try{
+      const storedKey=(()=>{try{return localStorage.getItem("es_anthropic_key")||"";}catch(e){return "";}})();
+      const resp=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":storedKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+        body:JSON.stringify({
+          model:"claude-sonnet-4-20250514",max_tokens:2000,
+          system:`Sei un assistente per verbali di cantiere. Estrai dal testo dell utente i dati per compilare un verbale di cantiere e rispondi SOLO con un JSON valido, nessun testo extra, con questa struttura esatta:
+{
+  "progetto":"",
+  "nVerbale":"",
+  "luogo":"",
+  "data":"",
+  "redattoDa":"",
+  "prossima":"",
+  "mappaCartella":"",
+  "presenti":["lista nomi/ruoli presenti"],
+  "trattande":["trattanda 1","trattanda 2",...],
+  "note":""
+}
+Usa la data di oggi se non specificata: ${new Date().toLocaleDateString("it-CH")}.
+Estrai tutto quello che riesci dal testo. Lascia vuoto quello che non trovi.`,
+          messages:[{role:"user",content:"Testo del verbale:\n"+testo}]
+        })
+      });
+      const data=await resp.json();
+      const raw=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim();
+      let parsed;
+      try{parsed=JSON.parse(raw);}catch(e){const m=raw.match(/\{[\s\S]*\}/);if(m)parsed=JSON.parse(m[0]);}
+      if(!parsed)throw new Error("Risposta AI non valida");
+      // Applica al verbale
+      setVb(prev=>{
+        const next={...prev};
+        if(parsed.progetto) next.progetto=parsed.progetto;
+        if(parsed.nVerbale) next.nVerbale=parsed.nVerbale;
+        if(parsed.luogo) next.luogo=parsed.luogo;
+        if(parsed.data) next.data=parsed.data;
+        if(parsed.redattoDa) next.redattoDa=parsed.redattoDa;
+        if(parsed.prossima) next.prossima=parsed.prossima;
+        if(parsed.mappaCartella) next.mappaCartella=parsed.mappaCartella;
+        // Presenti: cerca nei ruoli di prog e art
+        if(parsed.presenti&&Array.isArray(parsed.presenti)){
+          const presL=parsed.presenti.map(p=>p.toLowerCase());
+          next.prog=prev.prog.map(r=>({...r,presente:presL.some(p=>p.includes(r.label.toLowerCase().substring(0,6)))}));
+          next.art=prev.art.map(r=>({...r,presente:presL.some(p=>p.includes(r.label.toLowerCase().substring(0,6)))}));
+        }
+        // Trattande: aggiorna desc
+        if(parsed.trattande&&Array.isArray(parsed.trattande)){
+          next.trattande=prev.trattande.map((t,i)=>({
+            ...t,
+            desc:parsed.trattande[i]||t.desc
+          }));
+        }
+        return next;
+      });
+      setTab("info"); // vai al tab info per eventuali correzioni
+    }catch(e){
+      setGenErr("Errore AI: "+e.message+". Puoi compilare manualmente i campi nei tab.");
+    }
+    setVoceLoading(false);
+  };
 
   const updInfo=(k,v)=>setVb(p=>({...p,[k]:v}));
   const updProg=(i,k,v)=>setVb(p=>{const a=[...p.prog];a[i]={...a[i],[k]:v};return{...p,prog:a};});
@@ -2202,17 +2311,7 @@ function Verbali({user}){
   const updTrat=(i,k,v)=>setVb(p=>{const a=[...p.trattande];a[i]={...a[i],[k]:v};return{...p,trattande:a};});
 
   const pc={background:"#dce1ea",border:"1px solid "+T.border,borderRadius:13,padding:20,marginBottom:16};
-  const iL2={display:"block",fontSize:12,fontWeight:600,color:T.text,marginBottom:5};
-  const TABS=[{id:"info",label:"📋 Info"},{id:"prog",label:"👷 Progettisti"},{id:"art",label:"🏗 Artigiani"},{id:"trat",label:"📌 Trattande"}];
-
-  function MicBtn({target}){
-    const active=isActive(target);
-    return(<button type="button" onClick={()=>active?stopVoice():startVoice(target)} title={active?"Ferma":"Dettatura vocale"} style={{flexShrink:0,width:30,height:30,borderRadius:7,border:"none",cursor:"pointer",background:active?"#dc2626":"#c8d0dc",color:active?"#fff":T.textSub,fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>{active?"⏹":"🎤"}</button>);
-  }
-
-  function VI({value,onChange,ph,target,type="text"}){
-    return(<div style={{display:"flex",gap:5,alignItems:"center"}}><input type={type} style={{...inp,flex:1}} placeholder={ph||""} value={value} onChange={e=>onChange(e.target.value)}/><MicBtn target={target}/></div>);
-  }
+  const TABS=[{id:"voce",label:"🎤 Voce / AI"},{id:"info",label:"📋 Info"},{id:"prog",label:"👷 Progettisti"},{id:"art",label:"🏗 Artigiani"},{id:"trat",label:"📌 Trattande"}];
 
   const doGenerate=async()=>{
     setGenerating(true);setGenErr("");
@@ -2226,19 +2325,15 @@ function Verbali({user}){
   if(view==="list") return(
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-        <div><div style={{fontSize:18,fontWeight:800,color:T.text}}>Verbali di Cantiere</div><div style={{fontSize:13,color:T.textSub,marginTop:3}}>Compila il modulo, scarica il file Excel identico all originale ma compilato</div></div>
-        <button onClick={()=>{setVb(initVerbale());setTab("info");setView("form");}} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 18px",background:T.gradBlue,color:"#fff",border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer"}}><Icon d={PATHS.plus} size={15}/> Nuovo verbale</button>
-      </div>
-      <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:10,padding:"10px 16px",marginBottom:20,fontSize:12,color:"#1e40af",display:"flex",gap:10,alignItems:"center"}}>
-        <span style={{fontSize:16}}>🎤</span>
-        <span>Ogni campo ha il pulsante 🎤 per la <strong>dettatura vocale</strong> in italiano. Il file scaricato è identico al Verbale_tipo.xlsx, con i dati compilati nelle celle esatte.</span>
+        <div><div style={{fontSize:18,fontWeight:800,color:T.text}}>Verbali di Cantiere</div><div style={{fontSize:13,color:T.textSub,marginTop:3}}>Compila il verbale con la voce o manualmente, scarica Excel identico al template</div></div>
+        <button onClick={()=>{setVb(initVerbale());setVoce1("");setVoce2("");setTab("voce");setView("form");}} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 18px",background:T.gradBlue,color:"#fff",border:"none",borderRadius:10,fontWeight:700,fontSize:13,cursor:"pointer"}}><Icon d={PATHS.plus} size={15}/> Nuovo verbale</button>
       </div>
       {verbali.length===0?(
         <div style={{textAlign:"center",padding:"56px 20px",background:"#dce1ea",borderRadius:16,border:"1px solid "+T.border}}>
           <div style={{fontSize:40,marginBottom:14}}>📋</div>
           <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:8}}>Nessun verbale ancora</div>
-          <div style={{fontSize:13,color:T.textSub,marginBottom:20}}>Compila il form e scarica il verbale Excel in un click.</div>
-          <button onClick={()=>{setVb(initVerbale());setTab("info");setView("form");}} style={{padding:"10px 24px",background:T.gradBlue,color:"#fff",border:"none",borderRadius:10,fontWeight:700,fontSize:14,cursor:"pointer"}}>+ Crea il primo verbale</button>
+          <div style={{fontSize:13,color:T.textSub,marginBottom:20}}>Parla in 1-2 messaggi vocali e l AI compila il verbale automaticamente.</div>
+          <button onClick={()=>{setVb(initVerbale());setVoce1("");setVoce2("");setTab("voce");setView("form");}} style={{padding:"10px 24px",background:T.gradBlue,color:"#fff",border:"none",borderRadius:10,fontWeight:700,fontSize:14,cursor:"pointer"}}>+ Crea il primo verbale</button>
         </div>
       ):(
         <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:14}}>
@@ -2252,18 +2347,55 @@ function Verbali({user}){
   );
 
   return(
-    <div style={{maxWidth:1000}}>
+    <div style={{maxWidth:980}}>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20,flexWrap:"wrap"}}>
         <button onClick={()=>setView("list")} style={{background:"none",border:"none",cursor:"pointer",color:T.blue,fontSize:13,fontWeight:700,padding:0}}>← Lista verbali</button>
         <span style={{color:"#b0b8c4"}}>|</span>
         <span style={{fontSize:15,fontWeight:800,color:T.text}}>Nuovo verbale di cantiere</span>
-        {listening&&<span style={{marginLeft:8,padding:"3px 10px",borderRadius:20,background:"#dc2626",color:"#fff",fontSize:11,fontWeight:700}}>🎤 Registrazione in corso...</span>}
       </div>
 
       <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
         {TABS.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"9px 16px",borderRadius:9,border:"1.5px solid "+(tab===t.id?T.blue:T.border),background:tab===t.id?"#eff6ff":"#dce1ea",color:tab===t.id?T.blue:T.textSub,fontSize:12,fontWeight:tab===t.id?700:500,cursor:"pointer"}}>{t.label}</button>))}
       </div>
 
+      {/* ── TAB VOCE ── */}
+      {tab==="voce"&&(
+        <div style={pc}>
+          <div style={{fontSize:14,fontWeight:800,color:T.blue,marginBottom:6}}>Compila con la voce</div>
+          <div style={{fontSize:13,color:T.textSub,marginBottom:20,lineHeight:1.6}}>
+            Registra 1 o 2 messaggi vocali descrivendo il verbale (progetto, presenti, trattande, date...) e l AI compilerà tutti i campi automaticamente. Poi puoi correggere nei tab.
+          </div>
+          {[{num:1,val:voce1,set:setVoce1,ph:"es. Verbale n. 5 del 25 giugno 2026, progetto Villa Rossi a Locarno, presenti committente Mario Rossi, architetto Bianchi, capomastro Ferrari..."},
+            {num:2,val:voce2,set:setVoce2,ph:"es. Trattande: DL aggiorna stato avanzamento lavori entro 5 luglio, elettricista presenta preventivo modifiche, prossima riunione 2 luglio ore 9..."}
+          ].map(({num,val,set,ph})=>(
+            <div key={num} style={{marginBottom:16}}>
+              <label style={{display:"block",fontSize:12,fontWeight:600,color:T.text,marginBottom:6}}>Messaggio {num} {num===2?"(opzionale)":""}</label>
+              <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+                <textarea
+                  style={{...inp,flex:1,minHeight:72,resize:"vertical",lineHeight:1.6,fontSize:13}}
+                  placeholder={ph}
+                  value={val}
+                  onChange={e=>set(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={()=>voceListening===num?stopVoce():startVoce(num)}
+                  style={{flexShrink:0,width:44,height:44,borderRadius:10,border:"none",cursor:"pointer",background:voceListening===num?"#dc2626":"#d6dce6",color:voceListening===num?"#fff":T.textSub,fontSize:20,display:"flex",alignItems:"center",justifyContent:"center"}}
+                  title={voceListening===num?"Ferma registrazione":"Registra voce"}
+                >{voceListening===num?"⏹":"🎤"}</button>
+              </div>
+              {voceListening===num&&<div style={{fontSize:11,color:"#dc2626",fontWeight:600,marginTop:4}}>🔴 Registrazione in corso... parla ora</div>}
+            </div>
+          ))}
+          {genErr&&<div style={{padding:"9px 12px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,fontSize:12,color:T.red,marginBottom:12}}>{genErr}</div>}
+          <button onClick={aiCompila} disabled={voceLoading||(!voce1&&!voce2)} style={{padding:"11px 24px",background:voceLoading||(!voce1&&!voce2)?"#c4ccd8":T.gradPurple,color:voceLoading||(!voce1&&!voce2)?T.textMuted:"#fff",border:"none",borderRadius:10,fontWeight:700,fontSize:14,cursor:voceLoading||(!voce1&&!voce2)?"default":"pointer",display:"flex",alignItems:"center",gap:8}}>
+            {voceLoading?<><div style={{width:14,height:14,border:"2px solid rgba(255,255,255,0.4)",borderTopColor:"#fff",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/> AI sta compilando...</>:"✦ Compila verbale con AI"}
+          </button>
+          <div style={{marginTop:10,fontSize:12,color:T.textMuted}}>Richiede API key Anthropic (impostata nel profilo admin). Puoi anche compilare manualmente nei tab qui sopra.</div>
+        </div>
+      )}
+
+      {/* ── TAB INFO ── */}
       {tab==="info"&&(
         <div style={pc}>
           <div style={{fontSize:13,fontWeight:800,color:T.blue,marginBottom:16,textTransform:"uppercase",letterSpacing:"0.8px"}}>Informazioni generali</div>
@@ -2280,18 +2412,18 @@ function Verbali({user}){
               {label:"Mapp / N° cartella",field:"mappaCartella",ph:"es. 1234/2026"},
             ].map(({label,field,ph,type="text"})=>(
               <div key={field}>
-                <label style={iL2}>{label}</label>
-                <VI value={vb[field]} onChange={v=>updInfo(field,v)} ph={ph} target={{section:"info",field}} type={type}/>
+                <label style={{display:"block",fontSize:12,fontWeight:600,color:T.text,marginBottom:5}}>{label}</label>
+                <input type={type} style={{...inp}} placeholder={ph||""} value={vb[field]} onChange={e=>updInfo(field,e.target.value)}/>
               </div>
             ))}
           </div>
         </div>
       )}
 
+      {/* ── TAB PROGETTISTI ── */}
       {tab==="prog"&&(
         <div style={pc}>
           <div style={{fontSize:13,fontWeight:800,color:T.blue,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.8px"}}>Progettisti / COM</div>
-          <div style={{fontSize:12,color:T.textSub,marginBottom:14}}>🎤 = dettatura vocale in italiano per ogni campo.</div>
           <div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
               <thead><tr style={{background:"#c8d0dc"}}>{["Ruolo","Ditta","Responsabile","Sigla","Contatto","✓"].map(h=><th key={h} style={{padding:"8px 10px",fontWeight:700,color:T.text,fontSize:11,textAlign:"left",border:"1px solid "+T.border,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
@@ -2300,10 +2432,7 @@ function Verbali({user}){
                   <td style={{padding:"6px 8px",border:"1px solid "+T.border,fontWeight:700,color:T.blue,fontSize:12,whiteSpace:"nowrap"}}>{r.label}</td>
                   {["ditta","responsabile","sigla","contatto"].map(f=>(
                     <td key={f} style={{padding:"4px 6px",border:"1px solid "+T.border}}>
-                      <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                        <input style={{...inp,padding:"5px 8px",fontSize:12,minWidth:f==="sigla"?40:70,flex:1}} value={r[f]} onChange={e=>updProg(i,f,e.target.value)} placeholder="…"/>
-                        <MicBtn target={{section:"prog",idx:i,field:f}}/>
-                      </div>
+                      <input style={{...inp,padding:"5px 8px",fontSize:12,width:"100%",boxSizing:"border-box"}} value={r[f]} onChange={e=>updProg(i,f,e.target.value)} placeholder="…"/>
                     </td>
                   ))}
                   <td style={{padding:"4px 6px",border:"1px solid "+T.border,textAlign:"center"}}>
@@ -2316,10 +2445,11 @@ function Verbali({user}){
         </div>
       )}
 
+      {/* ── TAB ARTIGIANI ── */}
       {tab==="art"&&(
         <div style={pc}>
           <div style={{fontSize:13,fontWeight:800,color:T.blue,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.8px"}}>Artigiani</div>
-          <div style={{fontSize:12,color:T.textSub,marginBottom:14}}>Compila solo le righe delle ditte presenti. Le celle vuote restano vuote nel file Excel.</div>
+          <div style={{fontSize:12,color:T.textSub,marginBottom:10}}>Compila solo le righe presenti. Le celle vuote restano vuote nel file Excel.</div>
           <div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
               <thead><tr style={{background:"#c8d0dc"}}>{["Categoria","Ditta","Responsabile","Sigla","Contatto","✓"].map(h=><th key={h} style={{padding:"8px 10px",fontWeight:700,color:T.text,fontSize:11,textAlign:"left",border:"1px solid "+T.border,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
@@ -2328,19 +2458,13 @@ function Verbali({user}){
                 return(<tr key={i} style={{background:i%2===0?"#dce1ea":"#d6dce6"}}>
                   <td style={{padding:"6px 8px",border:"1px solid "+T.border,fontWeight:700,color:T.blue,fontSize:12,whiteSpace:"nowrap"}}>{r.label}</td>
                   <td style={{padding:"4px 6px",border:"1px solid "+T.border}}>
-                    {nd?<span style={{fontSize:11,color:T.textMuted,padding:"5px 8px",display:"block"}}>—</span>:(
-                      <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                        <input style={{...inp,padding:"5px 8px",fontSize:12,flex:1}} value={r.ditta} onChange={e=>updArt(i,"ditta",e.target.value)} placeholder="…"/>
-                        <MicBtn target={{section:"art",idx:i,field:"ditta"}}/>
-                      </div>
-                    )}
+                    {nd?<span style={{fontSize:11,color:T.textMuted,padding:"5px 8px",display:"block"}}>—</span>:
+                      <input style={{...inp,padding:"5px 8px",fontSize:12,width:"100%",boxSizing:"border-box"}} value={r.ditta} onChange={e=>updArt(i,"ditta",e.target.value)} placeholder="…"/>
+                    }
                   </td>
                   {["responsabile","sigla","contatto"].map(f=>(
                     <td key={f} style={{padding:"4px 6px",border:"1px solid "+T.border}}>
-                      <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                        <input style={{...inp,padding:"5px 8px",fontSize:12,minWidth:f==="sigla"?40:70,flex:1}} value={r[f]} onChange={e=>updArt(i,f,e.target.value)} placeholder="…"/>
-                        <MicBtn target={{section:"art",idx:i,field:f}}/>
-                      </div>
+                      <input style={{...inp,padding:"5px 8px",fontSize:12,width:"100%",boxSizing:"border-box"}} value={r[f]} onChange={e=>updArt(i,f,e.target.value)} placeholder="…"/>
                     </td>
                   ))}
                   <td style={{padding:"4px 6px",border:"1px solid "+T.border,textAlign:"center"}}>
@@ -2353,10 +2477,10 @@ function Verbali({user}){
         </div>
       )}
 
+      {/* ── TAB TRATTANDE ── */}
       {tab==="trat"&&(
         <div style={pc}>
           <div style={{fontSize:13,fontWeight:800,color:T.blue,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.8px"}}>Trattande</div>
-          <div style={{fontSize:12,color:T.textSub,marginBottom:14}}>Compila la descrizione specifica e la scadenza. Il CHI è pre-impostato dal template.</div>
           <div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
               <thead><tr style={{background:"#c8d0dc"}}>{["Pos.","Figura","Descrizione / Trattanda","Chi","Entro il"].map(h=><th key={h} style={{padding:"8px 10px",fontWeight:700,color:T.text,fontSize:11,textAlign:"left",border:"1px solid "+T.border}}>{h}</th>)}</tr></thead>
@@ -2365,19 +2489,13 @@ function Verbali({user}){
                   <td style={{padding:"5px 8px",border:"1px solid "+T.border,fontWeight:700,color:T.blue,textAlign:"center",width:40}}>{t.pos}</td>
                   <td style={{padding:"5px 8px",border:"1px solid "+T.border,fontSize:12,color:T.textSub,whiteSpace:"nowrap"}}>{t.label}</td>
                   <td style={{padding:"4px 6px",border:"1px solid "+T.border}}>
-                    <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                      <input style={{...inp,padding:"5px 8px",fontSize:12,flex:1}} value={t.desc} onChange={e=>updTrat(i,"desc",e.target.value)} placeholder="Descrizione trattanda…"/>
-                      <MicBtn target={{section:"trat",idx:i,field:"desc"}}/>
-                    </div>
+                    <input style={{...inp,padding:"5px 8px",fontSize:12,width:"100%",boxSizing:"border-box"}} value={t.desc} onChange={e=>updTrat(i,"desc",e.target.value)} placeholder="Descrizione trattanda…"/>
                   </td>
                   <td style={{padding:"4px 6px",border:"1px solid "+T.border,width:70}}>
-                    <input style={{...inp,padding:"5px 7px",fontSize:12,textAlign:"center"}} value={t.chi} onChange={e=>updTrat(i,"chi",e.target.value)}/>
+                    <input style={{...inp,padding:"5px 7px",fontSize:12,textAlign:"center",width:"100%",boxSizing:"border-box"}} value={t.chi} onChange={e=>updTrat(i,"chi",e.target.value)}/>
                   </td>
                   <td style={{padding:"4px 6px",border:"1px solid "+T.border,width:130}}>
-                    <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                      <input style={{...inp,padding:"5px 8px",fontSize:12,flex:1}} value={t.entro} onChange={e=>updTrat(i,"entro",e.target.value)} placeholder="es. 30.06.2026"/>
-                      <MicBtn target={{section:"trat",idx:i,field:"entro"}}/>
-                    </div>
+                    <input style={{...inp,padding:"5px 8px",fontSize:12,width:"100%",boxSizing:"border-box"}} value={t.entro} onChange={e=>updTrat(i,"entro",e.target.value)} placeholder="es. 30.06.2026"/>
                   </td>
                 </tr>
               ))}</tbody>
