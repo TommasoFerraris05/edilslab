@@ -2767,71 +2767,170 @@ function GanttPlanner({user}) {
     }
   };
 
-  // ── Export PDF (print) ──
+  // ── Export PDF (print) — replica ESATTA della griglia del sito ──
   const exportPDF = () => {
-    const style = document.createElement("style");
-    style.id = "gantt-print-style";
-    style.innerHTML = `
-      @media print {
-        body > * { display: none !important; }
-        #gantt-print-area { display: block !important; }
-        #gantt-print-area { position: fixed; top: 0; left: 0; width: 100%; }
-        @page { size: A3 landscape; margin: 10mm; }
-      }
-      #gantt-print-area { display: none; }
-    `;
-    document.head.appendChild(style);
+    const PX = DAY_W;            // stessa larghezza giorno del sito
+    const LEFTW = 340;           // larghezza colonna sinistra nel PDF
+    const ROWH = 26;             // altezza riga nel PDF
+    const timelineW = totalDays * PX;
 
-    const area = document.createElement("div");
-    area.id = "gantt-print-area";
-    area.innerHTML = `
-      <div style="font-family:Arial,sans-serif;padding:10px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:2px solid #2563eb;padding-bottom:8px">
+    // Header giorni (lettera del giorno) + strisce weekend/festivi
+    const dayCells = Array.from({ length: totalDays }).map((_, i) => {
+      const d = new Date(minDate); d.setDate(d.getDate() + i);
+      const ds = d.toISOString().split("T")[0];
+      const isWE = d.getDay() === 0 || d.getDay() === 6;
+      const isFest = fs.has(ds);
+      const bg = isFest ? "rgba(220,38,38,0.15)" : isWE ? "rgba(220,38,38,0.06)" : "transparent";
+      const col = (isWE || isFest) ? "#dc2626" : "#94a3b8";
+      return `<div style="position:absolute;left:${i * PX}px;top:0;width:${PX}px;height:100%;background:${bg};border-right:1px solid rgba(196,204,216,0.25);font-size:7px;color:${col};text-align:center;box-sizing:border-box">${"DLMMGVS"[d.getDay()]}</div>`;
+    }).join("");
+
+    // Strisce di sfondo weekend/festivi per la zona barre (senza lettera)
+    const stripeCells = Array.from({ length: totalDays }).map((_, i) => {
+      const d = new Date(minDate); d.setDate(d.getDate() + i);
+      const ds = d.toISOString().split("T")[0];
+      const isWE = d.getDay() === 0 || d.getDay() === 6;
+      const isFest = fs.has(ds);
+      if (!isWE && !isFest) return "";
+      const bg = isFest ? "rgba(220,38,38,0.09)" : "rgba(220,38,38,0.04)";
+      return `<div style="position:absolute;left:${i * PX}px;top:0;width:${PX}px;height:100%;background:${bg}"></div>`;
+    }).join("");
+
+    // Header mesi
+    const monthCells = months.map((m, i) =>
+      `<div style="position:absolute;left:${m.x}px;top:0;width:${m.days * PX}px;height:100%;border-right:1px solid rgba(196,204,216,0.5);font-size:10px;font-weight:700;color:#2563eb;padding-left:5px;box-sizing:border-box;text-transform:capitalize;display:flex;align-items:center;background:${i % 2 === 0 ? "transparent" : "rgba(0,0,0,0.02)"}">${m.label}</div>`
+    ).join("");
+
+    // Linea "oggi"
+    const todayLine = (todayX >= 0 && todayX <= timelineW)
+      ? `<div style="position:absolute;left:${todayX}px;top:0;width:2px;height:100%;background:#ef4444;opacity:0.7;z-index:3"></div>`
+      : "";
+
+    // Righe attività
+    const rowsHtml = tasks.map((t, ti) => {
+      const barLeft = getX(t.inizio);
+      const barW = getW(t.inizio, t.fine);
+      const indent = t.level * 12;
+      const predTask = t.dep ? tasks.find(x => x.id === parseInt(t.dep)) : null;
+
+      // Freccia dipendenza
+      let depSvg = "";
+      if (predTask) {
+        const pe = getX(predTask.fine) + PX;
+        const cs = getX(t.inizio);
+        const my = ROWH / 2;
+        depSvg = `<svg style="position:absolute;top:0;left:0;width:100%;height:${ROWH}px;overflow:visible;z-index:1;pointer-events:none">
+          <line x1="${pe}" y1="${my}" x2="${cs}" y2="${my}" stroke="${t.color}" stroke-width="1.5" stroke-dasharray="4 2" opacity="0.7"/>
+          <polygon points="${cs},${my} ${cs - 5},${my - 3} ${cs - 5},${my + 3}" fill="${t.color}" opacity="0.7"/>
+        </svg>`;
+      }
+
+      // Barra
+      const barTop = t.isGroup ? 4 : 6;
+      const barH = t.isGroup ? 16 : 13;
+      const groupPattern = t.isGroup
+        ? `<div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(255,255,255,0.15) 4px,rgba(255,255,255,0.15) 8px);border-radius:4px"></div>`
+        : "";
+      const barLabel = barW > 44
+        ? `<div style="position:absolute;inset:0;display:flex;align-items:center;padding-left:6px;font-size:8px;color:rgba(255,255,255,0.95);font-weight:600;overflow:hidden;white-space:nowrap">${t.nome}</div>`
+        : "";
+      const bar = `<div style="position:absolute;left:${barLeft}px;top:${barTop}px;width:${barW}px;height:${barH}px;background:${t.isGroup ? t.color : t.color + "dd"};border-radius:${t.isGroup ? 4 : 7}px;z-index:2;box-shadow:0 1px 3px ${t.color}50">${groupPattern}${barLabel}</div>`;
+
+      // Etichetta data fine
+      const endLabel = `<div style="position:absolute;left:${barLeft + barW + 3}px;top:${t.isGroup ? 7 : 8}px;font-size:7px;color:${t.color};font-weight:600;white-space:nowrap;z-index:1">${fmtD(t.fine)}</div>`;
+
+      const leftCell = `
+        <td style="border:1px solid #e2e7ef;padding:0;vertical-align:middle;background:${t.isGroup ? t.color + "08" : "#fff"}">
+          <div style="display:flex;align-items:center;height:${ROWH}px;padding:0 6px;box-sizing:border-box">
+            <div style="width:20px;flex-shrink:0;text-align:center;font-size:8px;color:#94a3b8">${ti + 1}</div>
+            <div style="width:6px;height:6px;border-radius:50%;background:${t.color};flex-shrink:0;margin:0 5px"></div>
+            <div style="flex:1;font-size:${t.isGroup ? 10 : 9}px;font-weight:${t.isGroup ? 700 : 400};color:${t.isGroup ? t.color : "#0f172a"};padding-left:${indent}px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.isGroup ? "▶ " : ""}${t.nome}</div>
+            <div style="flex-shrink:0;text-align:right;font-size:8px;color:#94a3b8;margin-left:4px">
+              <div>${fmtD(t.inizio)}</div>
+              <div style="color:${t.color};font-weight:600">${fmtDurata(parseDurata(t.durata))}</div>
+            </div>
+          </div>
+        </td>`;
+
+      const rightCell = `
+        <td style="border:1px solid #e2e7ef;padding:0;position:relative;height:${ROWH}px">
+          <div style="position:relative;width:${timelineW}px;height:${ROWH}px">
+            ${stripeCells}
+            ${todayLine}
+            ${depSvg}
+            ${bar}
+            ${endLabel}
+          </div>
+        </td>`;
+
+      return `<tr style="background:${ti % 2 === 0 ? "#f8fafc" : "#fff"}">${leftCell}${rightCell}</tr>`;
+    }).join("");
+
+    // Contenuto del PDF (identico alla griglia a schermo)
+    const content = `
+      <div style="font-family:Arial,sans-serif;padding:6px;color:#0f172a">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;border-bottom:2px solid #2563eb;padding-bottom:6px">
           <div>
-            <div style="font-size:18px;font-weight:800;color:#0f172a">${pName || "Programma Lavori"}</div>
+            <div style="font-size:18px;font-weight:800">${pName || "Programma Lavori"}</div>
             <div style="font-size:11px;color:#64748b">${[pClient, pLoc].filter(Boolean).join(" · ")}</div>
           </div>
           <div style="text-align:right;font-size:10px;color:#64748b">Edilslab · ${fmtD(today)}</div>
         </div>
-        <table style="width:100%;border-collapse:collapse;font-size:10px">
+        <table style="border-collapse:collapse;table-layout:fixed">
           <thead>
-            <tr style="background:#e2e7ef">
-              <th style="padding:5px 8px;text-align:left;border:1px solid #c4ccd8;width:30px">#</th>
-              <th style="padding:5px 8px;text-align:left;border:1px solid #c4ccd8;min-width:180px">Attività</th>
-              <th style="padding:5px 8px;text-align:center;border:1px solid #c4ccd8;width:70px">Inizio</th>
-              <th style="padding:5px 8px;text-align:center;border:1px solid #c4ccd8;width:70px">Fine</th>
-              <th style="padding:5px 8px;text-align:center;border:1px solid #c4ccd8;width:40px">GG</th>
-              ${months.map(m => `<th style="padding:5px 4px;text-align:center;border:1px solid #c4ccd8;min-width:${m.days * 4}px;font-weight:600;color:#2563eb">${m.label}</th>`).join("")}
+            <tr>
+              <td style="width:${LEFTW}px;border:1px solid #c4ccd8;background:#c8d0dc;height:20px;padding:0 8px;font-size:10px;font-weight:700;color:#64748b;box-sizing:border-box">Attività / ${tasks.length} righe</td>
+              <td style="border:1px solid #c4ccd8;background:#c8d0dc;padding:0;position:relative;height:20px">
+                <div style="position:relative;width:${timelineW}px;height:20px">${monthCells}${todayLine}</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="width:${LEFTW}px;border:1px solid #c4ccd8;background:#cdd3dc;height:14px;box-sizing:border-box"></td>
+              <td style="border:1px solid #c4ccd8;background:#cdd3dc;padding:0;position:relative;height:14px">
+                <div style="position:relative;width:${timelineW}px;height:14px">${dayCells}</div>
+              </td>
             </tr>
           </thead>
-          <tbody>
-            ${tasks.map((t, i) => {
-              const bar_left = getX(t.inizio);
-              const bar_width = getW(t.inizio, t.fine);
-              const total_w = totalDays * 4;
-              return `<tr style="background:${i%2===0?"#f8fafc":"#fff"}">
-                <td style="padding:4px 6px;border:1px solid #e2e7ef;color:#94a3b8;text-align:center">${i+1}</td>
-                <td style="padding:4px 6px;border:1px solid #e2e7ef;font-weight:${t.isGroup?700:400};color:${t.isGroup?t.color:"#0f172a"};padding-left:${8+t.level*12}px">${t.isGroup?"▶ ":""}${t.nome}</td>
-                <td style="padding:4px 6px;border:1px solid #e2e7ef;text-align:center;color:#64748b">${fmtD(t.inizio)}</td>
-                <td style="padding:4px 6px;border:1px solid #e2e7ef;text-align:center;color:#64748b">${fmtD(t.fine)}</td>
-                <td style="padding:4px 6px;border:1px solid #e2e7ef;text-align:center;font-weight:600;color:${t.color}">${t.durata}</td>
-                <td colspan="${months.length}" style="padding:2px;border:1px solid #e2e7ef;position:relative;height:22px">
-                  <div style="position:relative;width:${total_w}px;height:18px">
-                    <div style="position:absolute;left:${bar_left/DAY_W*4}px;width:${bar_width/DAY_W*4}px;height:14px;top:2px;background:${t.color};border-radius:3px;opacity:0.85"></div>
-                  </div>
-                </td>
-              </tr>`;
-            }).join("")}
-          </tbody>
+          <tbody>${rowsHtml}</tbody>
         </table>
-        <div style="margin-top:10px;font-size:9px;color:#94a3b8">Cronoprogramma indicativo · Generato da Edilslab · ${fmtD(today)}</div>
+        <div style="margin-top:8px;display:flex;gap:14px;font-size:9px;color:#94a3b8;align-items:center">
+          <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:10px;height:7px;background:rgba(220,38,38,0.25);border-radius:2px"></span> festivi / weekend</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:2px;height:12px;background:#ef4444"></span> oggi</span>
+          <span style="margin-left:auto">Cronoprogramma indicativo · Generato da Edilslab · ${fmtD(today)}</span>
+        </div>
       </div>
     `;
+
+    const pageCss = `@page{size:A3 landscape;margin:8mm}body{margin:0}`;
+
+    // Metodo principale: finestra di stampa dedicata (più affidabile)
+    try {
+      const w = window.open("", "_blank");
+      if (w && w.document) {
+        w.document.open();
+        w.document.write(
+          `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${(pName || "Programma Lavori").replace(/</g, "")}</title><style>${pageCss}</style></head><body>${content}` +
+          `<script>window.onload=function(){setTimeout(function(){window.focus();window.print();},250);};window.onafterprint=function(){window.close();};<\/script>` +
+          `</body></html>`
+        );
+        w.document.close();
+        return;
+      }
+    } catch (e) { /* popup bloccato o non disponibile: uso il fallback */ }
+
+    // Fallback: stampa in-pagina (se i popup sono bloccati)
+    const style = document.createElement("style");
+    style.id = "gantt-print-style";
+    style.innerHTML = `@media print{body>*{display:none!important}#gantt-print-area{display:block!important;position:fixed;top:0;left:0;width:100%}@page{size:A3 landscape;margin:8mm}}#gantt-print-area{display:none}`;
+    document.head.appendChild(style);
+    const area = document.createElement("div");
+    area.id = "gantt-print-area";
+    area.innerHTML = content;
     document.body.appendChild(area);
     window.print();
     setTimeout(() => {
-      document.body.removeChild(area);
-      document.head.removeChild(style);
+      if (area.parentNode) document.body.removeChild(area);
+      if (style.parentNode) document.head.removeChild(style);
     }, 1000);
   };
 
